@@ -12,19 +12,29 @@
 'use strict';
 
 function getTestDocument(markup) {
-  var iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
-  document.body.appendChild(iframe);
 
-  var testDocument = iframe.contentDocument || iframe.contentWindow.document;
-  testDocument.open();
-  testDocument.write(
+  // rough patch for jsdom, which doesn't implement .write() to an iframe correctly.
+  document.open();
+  document.write(
     markup || '<!doctype html><html><meta charset=utf-8><title>test doc</title>'
   );
-  testDocument.close();
+  document.close();
+  return document;
 
-  iframe.parentNode.removeChild(iframe);
-  return testDocument;
+// orginal implementation.
+  // var iframe = document.createElement('iframe');
+  // iframe.style.display = 'none';
+  // document.body.appendChild(iframe);
+
+  // var testDocument = iframe.contentDocument || iframe.contentWindow.document;
+  // testDocument.open();
+  // testDocument.write(
+  //   markup || '<!doctype html><html><meta charset=utf-8><title>test doc</title>'
+  // );
+  // testDocument.close();
+
+  // iframe.parentNode.removeChild(iframe);
+  // return testDocument;
 }
 
 module.exports = getTestDocument;
