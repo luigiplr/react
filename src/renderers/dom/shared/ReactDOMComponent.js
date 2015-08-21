@@ -41,6 +41,8 @@ var shallowEqual = require('shallowEqual');
 var validateDOMNesting = require('validateDOMNesting');
 var warning = require('warning');
 
+var getSyncFunction = require('getSyncFunction');
+
 var deleteListener = ReactBrowserEventEmitter.deleteListener;
 var listenTo = ReactBrowserEventEmitter.listenTo;
 var registrationNameModules = ReactBrowserEventEmitter.registrationNameModules;
@@ -468,6 +470,36 @@ function isCustomComponent(tagName, props) {
   return tagName.indexOf('-') >= 0 || props.is != null;
 }
 
+// text/html ignores the first character in newline eating tags if it's a newline
+// Prefer to break application/xml over text/html (for now) by adding
+// a newline specifically to get eaten by the parser. (Alternately for
+// textareas, replacing "^\n" with "\r\n" doesn't get eaten, and the first
+// \r is normalized out by HTMLTextAreaElement#value.)
+// See: <http://www.w3.org/TR/html-polyglot/#newlines-in-textarea-and-pre>
+// See: <http://www.w3.org/TR/html5/syntax.html#element-restrictions>
+// See: <http://www.w3.org/TR/html5/syntax.html#newlines>
+// See: Parsing of "textarea" "listing" and "pre" elements
+//  from <http://www.w3.org/TR/html5/syntax.html#parsing-main-inbody>
+function newlineAddingStream(tag, stream) {
+  if (newlineEatingTags[tag]) {
+    return {
+      _firstCharProcessed: false,
+      write: function(text) {
+        if (!this._firstCharProcessed && text.length > 0) {
+          if (text.charAt(0) === '\n') {
+            // write an extra newline to the stream.
+            stream.write('\n');
+          }
+          this._firstCharProcessed = true;
+        }
+        stream.write(text);
+      }
+    }
+  } else {
+    return stream;
+  }
+}
+
 /**
  * Creates a new React class that is idempotent and capable of containing other
  * React components. It accepts event listeners and DOM properties that are
@@ -510,9 +542,10 @@ ReactDOMComponent.Mixin = {
    * @param {string} rootID The root DOM ID for this node.
    * @param {ReactReconcileTransaction|ReactServerRenderingTransaction} transaction
    * @param {object} context
+   * @param {Writable} stream to send markup
    * @return {string} The computed markup.
    */
-  mountComponent: function(rootID, transaction, context) {
+  mountComponentAsync: function(rootID, transaction, context, stream) {
     this._rootNodeID = rootID;
 
     var props = this._currentElement.props;
@@ -561,8 +594,8 @@ ReactDOMComponent.Mixin = {
       }
     }
 
-    var tagOpen = this._createOpenTagMarkupAndPutListeners(transaction, props);
-    var tagContent = this._createContentMarkup(transaction, props, context);
+    this._createOpenTagMarkupAndPutListenersAsync(transaction, props, stream);
+    this._createContentMarkupAsync(transaction, props, context, stream);
 
     switch (this._tag) {
       case 'button':
@@ -577,11 +610,6 @@ ReactDOMComponent.Mixin = {
         }
         break;
     }
-
-    if (!tagContent && omittedCloseTags[this._tag]) {
-      return tagOpen + '/>';
-    }
-    return tagOpen + '>' + tagContent + '</' + this._currentElement.type + '>';
   },
 
   /**
@@ -597,8 +625,8 @@ ReactDOMComponent.Mixin = {
    * @param {object} props
    * @return {string} Markup of opening tag.
    */
-  _createOpenTagMarkupAndPutListeners: function(transaction, props) {
-    var ret = '<' + this._currentElement.type;
+  _createOpenTagMarkupAndPutListenersAsync: function(transaction, props, stream) {
+    stream.write('<' + this._currentElement.type);
 
     for (var propKey in props) {
       if (!props.hasOwnProperty(propKey)) {
@@ -628,7 +656,7 @@ ReactDOMComponent.Mixin = {
           markup = DOMPropertyOperations.createMarkupForProperty(propKey, propValue);
         }
         if (markup) {
-          ret += ' ' + markup;
+          stream.write(' ' + markup);
         }
       }
     }
@@ -636,11 +664,11 @@ ReactDOMComponent.Mixin = {
     // For static pages, no need to put React ID and checksum. Saves lots of
     // bytes.
     if (transaction.renderToStaticMarkup) {
-      return ret;
+      return;
     }
 
     var markupForID = DOMPropertyOperations.createMarkupForID(this._rootNodeID);
-    return ret + ' ' + markupForID;
+    stream.write(' ' + markupForID);
   },
 
   /**
@@ -652,14 +680,14 @@ ReactDOMComponent.Mixin = {
    * @param {object} context
    * @return {string} Content markup.
    */
-  _createContentMarkup: function(transaction, props, context) {
-    var ret = '';
-
+  _createContentMarkupAsync: function(transaction, props, context, stream) {
     // Intentional use of != to avoid catching zero/false.
     var innerHTML = props.dangerouslySetInnerHTML;
     if (innerHTML != null) {
       if (innerHTML.__html != null) {
-        ret = innerHTML.__html;
+        this._closeTagAndWriteBody(innerHTML.__html, stream);
+      } else {
+        this._closeTagWithoutBody(stream);
       }
     } else {
       var contentToUse =
@@ -667,30 +695,33 @@ ReactDOMComponent.Mixin = {
       var childrenToUse = contentToUse != null ? null : props.children;
       if (contentToUse != null) {
         // TODO: Validate that text is allowed as a child of this node
-        ret = escapeTextContentForBrowser(contentToUse);
+        this._closeTagAndWriteBody(escapeTextContentForBrowser(contentToUse), stream);
       } else if (childrenToUse != null) {
-        var mountImages = this.mountChildren(
+        stream.write('>');
+        this.mountChildrenAsync(
           childrenToUse,
           transaction,
-          processChildContext(context, this)
+          processChildContext(context, this),
+          newlineAddingStream(this._tag, stream)
         );
-        ret = mountImages.join('');
+        stream.write('</' + this._currentElement.type + '>');
+      } else {
+        this._closeTagWithoutBody(stream);
       }
     }
-    if (newlineEatingTags[this._tag] && ret.charAt(0) === '\n') {
-      // text/html ignores the first character in these tags if it's a newline
-      // Prefer to break application/xml over text/html (for now) by adding
-      // a newline specifically to get eaten by the parser. (Alternately for
-      // textareas, replacing "^\n" with "\r\n" doesn't get eaten, and the first
-      // \r is normalized out by HTMLTextAreaElement#value.)
-      // See: <http://www.w3.org/TR/html-polyglot/#newlines-in-textarea-and-pre>
-      // See: <http://www.w3.org/TR/html5/syntax.html#element-restrictions>
-      // See: <http://www.w3.org/TR/html5/syntax.html#newlines>
-      // See: Parsing of "textarea" "listing" and "pre" elements
-      //  from <http://www.w3.org/TR/html5/syntax.html#parsing-main-inbody>
-      return '\n' + ret;
+  },
+
+  _closeTagAndWriteBody: function(text, stream) {
+    stream.write('>');
+    newlineAddingStream(this._tag, stream).write(text);
+    stream.write('</' + this._currentElement.type + '>');
+  },
+
+  _closeTagWithoutBody: function(stream) {
+    if (omittedCloseTags[this._tag]) {
+      stream.write('/>');
     } else {
-      return ret;
+        stream.write('></' + this._currentElement.type + '>');
     }
   },
 
@@ -1026,6 +1057,12 @@ ReactDOMComponent.Mixin = {
   },
 
 };
+
+ReactDOMComponent.Mixin.mountComponent = getSyncFunction(ReactDOMComponent.Mixin.mountComponentAsync);
+
+ReactDOMComponent.Mixin._createOpenTagMarkupAndPutListeners = getSyncFunction(ReactDOMComponent.Mixin._createOpenTagMarkupAndPutListenersAsync);
+
+ReactDOMComponent.Mixin._createContentMarkup = getSyncFunction(ReactDOMComponent.Mixin._createContentMarkupAsync);
 
 ReactPerf.measureMethods(ReactDOMComponent, 'ReactDOMComponent', {
   mountComponent: 'mountComponent',

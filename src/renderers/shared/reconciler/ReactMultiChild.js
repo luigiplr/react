@@ -18,6 +18,8 @@ var ReactMultiChildUpdateTypes = require('ReactMultiChildUpdateTypes');
 var ReactReconciler = require('ReactReconciler');
 var ReactChildReconciler = require('ReactChildReconciler');
 
+var getSyncFunction = require('getSyncFunction');
+
 /**
  * Updating children of a component may trigger recursive updates. The depth is
  * used to batch recursive updates to render markup more efficiently.
@@ -189,6 +191,7 @@ var ReactMultiChild = {
    */
   Mixin: {
 
+
     /**
      * Generates a "mount image" for each of the supplied children. In the case
      * of `ReactDOMComponent`, a mount image is a string of markup.
@@ -197,30 +200,28 @@ var ReactMultiChild = {
      * @return {array} An array of mounted representations.
      * @internal
      */
-    mountChildren: function(nestedChildren, transaction, context) {
+    mountChildrenAsync: function(nestedChildren, transaction, context, stream) {
       var children = ReactChildReconciler.instantiateChildren(
         nestedChildren, transaction, context
       );
       this._renderedChildren = children;
-      var mountImages = [];
       var index = 0;
       for (var name in children) {
         if (children.hasOwnProperty(name)) {
           var child = children[name];
           // Inlined for performance, see `ReactInstanceHandles.createReactID`.
           var rootID = this._rootNodeID + name;
-          var mountImage = ReactReconciler.mountComponent(
+          ReactReconciler.mountComponentAsync(
             child,
             rootID,
             transaction,
-            context
+            context,
+            stream
           );
           child._mountIndex = index;
-          mountImages.push(mountImage);
           index++;
         }
       }
-      return mountImages;
     },
 
     /**
@@ -485,5 +486,7 @@ var ReactMultiChild = {
   },
 
 };
+
+ReactMultiChild.Mixin.mountChildren = getSyncFunction(ReactMultiChild.Mixin.mountChildrenAsync);
 
 module.exports = ReactMultiChild;

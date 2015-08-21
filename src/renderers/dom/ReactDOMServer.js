@@ -13,12 +13,15 @@
 
 var ReactDefaultInjection = require('ReactDefaultInjection');
 var ReactServerRendering = require('ReactServerRendering');
+var ReactServerAsyncRendering = require('ReactServerAsyncRendering');
 
 ReactDefaultInjection.inject();
 
 var ReactDOMServer = {
   renderToString: ReactServerRendering.renderToString,
   renderToStaticMarkup: ReactServerRendering.renderToStaticMarkup,
+  asyncRenderToString: ReactServerAsyncRendering.renderToString,
+  asyncRenderToStaticMarkup: ReactServerAsyncRendering.renderToStaticMarkup,
 };
 
 module.exports = ReactDOMServer;

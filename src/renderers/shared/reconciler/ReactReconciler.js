@@ -13,6 +13,8 @@
 
 var ReactRef = require('ReactRef');
 
+var getSyncFunction = require('getSyncFunction');
+
 /**
  * Helper to call ReactRef.attachRefs with this composite component, split out
  * to avoid allocations in the transaction mount-ready queue.
@@ -33,12 +35,11 @@ var ReactReconciler = {
    * @final
    * @internal
    */
-  mountComponent: function(internalInstance, rootID, transaction, context) {
-    var markup = internalInstance.mountComponent(rootID, transaction, context);
+  mountComponentAsync: function(internalInstance, rootID, transaction, context, stream) {
+    internalInstance.mountComponentAsync(rootID, transaction, context, stream);
     if (internalInstance._currentElement.ref != null) {
       transaction.getReactMountReady().enqueue(attachRefs, internalInstance);
     }
-    return markup;
   },
 
   /**
@@ -113,5 +114,9 @@ var ReactReconciler = {
   },
 
 };
+
+ReactReconciler.mountComponent = getSyncFunction(ReactReconciler.mountComponentAsync);
+
+
 
 module.exports = ReactReconciler;

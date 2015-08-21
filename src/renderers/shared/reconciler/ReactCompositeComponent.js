@@ -27,6 +27,8 @@ var invariant = require('invariant');
 var shouldUpdateReactComponent = require('shouldUpdateReactComponent');
 var warning = require('warning');
 
+var getSyncFunction = require('getSyncFunction');
+
 function getDeclarationErrorAddendum(component) {
   var owner = component._currentElement._owner || null;
   if (owner) {
@@ -115,7 +117,7 @@ var ReactCompositeComponentMixin = {
    * @final
    * @internal
    */
-  mountComponent: function(rootID, transaction, context) {
+  mountComponentAsync: function(rootID, transaction, context, stream) {
     this._context = context;
     this._mountOrder = nextMountID++;
     this._rootNodeID = rootID;
@@ -237,17 +239,16 @@ var ReactCompositeComponentMixin = {
       renderedElement
     );
 
-    var markup = ReactReconciler.mountComponent(
+    ReactReconciler.mountComponentAsync(
       this._renderedComponent,
       rootID,
       transaction,
-      this._processChildContext(context)
+      this._processChildContext(context),
+      stream
     );
     if (inst.componentDidMount) {
       transaction.getReactMountReady().enqueue(inst.componentDidMount, inst);
     }
-
-    return markup;
   },
 
   /**
@@ -807,6 +808,9 @@ var ReactCompositeComponentMixin = {
   _instantiateReactComponent: null,
 
 };
+
+ReactCompositeComponentMixin.mountComponent = getSyncFunction(ReactCompositeComponentMixin.mountComponentAsync);
+
 
 ReactPerf.measureMethods(
   ReactCompositeComponentMixin,
