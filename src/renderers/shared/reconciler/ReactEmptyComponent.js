@@ -16,6 +16,7 @@ var ReactEmptyComponentRegistry = require('ReactEmptyComponentRegistry');
 var ReactReconciler = require('ReactReconciler');
 
 var assign = require('Object.assign');
+var getSyncFunction = require('getSyncFunction');
 
 var placeholderElement;
 
@@ -33,14 +34,15 @@ var ReactEmptyComponent = function(instantiate) {
 assign(ReactEmptyComponent.prototype, {
   construct: function(element) {
   },
-  mountComponent: function(rootID, transaction, context) {
+  mountComponentAsync: function(rootID, transaction, context, stream) {
     ReactEmptyComponentRegistry.registerNullComponentID(rootID);
     this._rootNodeID = rootID;
-    return ReactReconciler.mountComponent(
+    return ReactReconciler.mountComponentAsync(
       this._renderedComponent,
       rootID,
       transaction,
-      context
+      context,
+      stream
     );
   },
   receiveComponent: function() {
@@ -52,6 +54,11 @@ assign(ReactEmptyComponent.prototype, {
     this._renderedComponent = null;
   },
 });
+
+assign(ReactEmptyComponent.prototype, {
+  mountComponent: getSyncFunction(ReactEmptyComponent.prototype.mountComponentAsync),
+});
+
 
 ReactEmptyComponent.injection = ReactEmptyComponentInjection;
 

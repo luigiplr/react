@@ -452,7 +452,7 @@ describe('ReactDOMComponent', function() {
       var ReactReconcileTransaction = require('ReactReconcileTransaction');
 
       var NodeStub = function(initialProps) {
-        this._currentElement = {props: initialProps};
+        this._currentElement = {props: initialProps, type:"span"};
         this._rootNodeID = 'test';
       };
       assign(NodeStub.prototype, ReactDOMComponent.Mixin);
@@ -478,7 +478,7 @@ describe('ReactDOMComponent', function() {
       var innerHTML = {__html: 'testContent'};
       expect(
         genMarkup({dangerouslySetInnerHTML: innerHTML})
-      ).toHaveInnerhtml('testContent');
+      ).toHaveInnerhtml('>testContent</span>');
     });
   });
 

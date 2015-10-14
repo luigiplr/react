@@ -373,6 +373,9 @@ NoopInternalComponent.prototype = {
   mountComponent: function() {
   },
 
+  mountComponentAsync: function() {
+  },
+
   receiveComponent: function(element) {
     this._renderedOutput = element;
     this._currentElement = element;

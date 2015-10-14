@@ -23,6 +23,8 @@ var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
 var setTextContent = require('setTextContent');
 var validateDOMNesting = require('validateDOMNesting');
 
+var getSyncFunction = require('getSyncFunction');
+
 /**
  * Text nodes violate a couple assumptions that React makes about components:
  *
@@ -67,7 +69,7 @@ assign(ReactDOMTextComponent.prototype, {
    * @return {string} Markup for this text node.
    * @internal
    */
-  mountComponent: function(rootID, transaction, context) {
+  mountComponentAsync: function(rootID, transaction, context, stream) {
     if (__DEV__) {
       if (context[validateDOMNesting.ancestorInfoContextKey]) {
         validateDOMNesting(
@@ -94,14 +96,13 @@ assign(ReactDOMTextComponent.prototype, {
         // Normally we'd wrap this in a `span` for the reasons stated above, but
         // since this is a situation where React won't take over (static pages),
         // we can simply return the text as it is.
-        return escapedText;
+        stream.write(escapedText);
+        return;
       }
 
-      return (
-        '<span ' + DOMPropertyOperations.createMarkupForID(rootID) + '>' +
-          escapedText +
-        '</span>'
-      );
+      stream.write('<span ' + DOMPropertyOperations.createMarkupForID(rootID) + '>');
+      stream.write(escapedText);
+      stream.write('</span>');
     }
   },
 
@@ -131,6 +132,10 @@ assign(ReactDOMTextComponent.prototype, {
     ReactComponentBrowserEnvironment.unmountIDFromEnvironment(this._rootNodeID);
   },
 
+});
+
+assign(ReactDOMTextComponent.prototype, {
+  mountComponent: getSyncFunction(ReactDOMTextComponent.prototype.mountComponentAsync),
 });
 
 module.exports = ReactDOMTextComponent;

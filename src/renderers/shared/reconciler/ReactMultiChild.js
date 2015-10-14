@@ -20,6 +20,7 @@ var ReactReconciler = require('ReactReconciler');
 var ReactChildReconciler = require('ReactChildReconciler');
 
 var flattenChildren = require('flattenChildren');
+var getSyncFunction = require('getSyncFunction');
 
 /**
  * Updating children of a component may trigger recursive updates. The depth is
@@ -239,29 +240,28 @@ var ReactMultiChild = {
      * @return {array} An array of mounted representations.
      * @internal
      */
-    mountChildren: function(nestedChildren, transaction, context) {
+    mountChildrenAsync: function(nestedChildren, transaction, context, stream) {
       var children = this._reconcilerInstantiateChildren(
         nestedChildren, transaction, context
       );
       this._renderedChildren = children;
-      var mountImages = [];
       var index = 0;
       for (var name in children) {
         if (children.hasOwnProperty(name)) {
           var child = children[name];
           // Inlined for performance, see `ReactInstanceHandles.createReactID`.
           var rootID = this._rootNodeID + name;
-          var mountImage = ReactReconciler.mountComponent(
+          ReactReconciler.mountComponentAsync(
             child,
             rootID,
             transaction,
-            context
+            context,
+            stream
           );
-          child._mountIndex = index++;
-          mountImages.push(mountImage);
+          child._mountIndex = index;
+          index++;
         }
       }
-      return mountImages;
     },
 
     /**
@@ -525,5 +525,7 @@ var ReactMultiChild = {
   },
 
 };
+
+ReactMultiChild.Mixin.mountChildren = getSyncFunction(ReactMultiChild.Mixin.mountChildrenAsync);
 
 module.exports = ReactMultiChild;
