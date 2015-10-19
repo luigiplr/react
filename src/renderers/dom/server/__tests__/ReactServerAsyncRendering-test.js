@@ -45,7 +45,7 @@ describe('ReactServerAsyncRendering', function() {
     spyOn(console, 'error');
   });
 
-  describe('renderToString', function() {
+  describe('renderToStringStream', function() {
     it('should generate simple markup', function() {
       var stream = concatStream({encoding: "string"}, function(result) {
         expect(result).toMatch(
@@ -53,7 +53,7 @@ describe('ReactServerAsyncRendering', function() {
         );
       });
 
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <span>hello world</span>,
         stream
       );
@@ -68,7 +68,7 @@ describe('ReactServerAsyncRendering', function() {
         );
       });
 
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <img />,
         stream
       );
@@ -82,7 +82,7 @@ describe('ReactServerAsyncRendering', function() {
           '<img data-attr="&gt;" ' + ID_ATTRIBUTE_NAME + '="[^"]+"/>'
         );
       });
-      var response = ReactServerAsyncRendering.renderToString(
+      var response = ReactServerAsyncRendering.renderToStringStream(
         <img data-attr=">" />,
         stream
       );
@@ -95,7 +95,7 @@ describe('ReactServerAsyncRendering', function() {
       var EventPluginHub = require('EventPluginHub');
       var cb = mocks.getMockFunction();
 
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <span onClick={cb}>hello world</span>,
         stream
       );
@@ -124,7 +124,7 @@ describe('ReactServerAsyncRendering', function() {
           return <span>My name is {this.props.name}</span>;
         },
       });
-      var response = ReactServerAsyncRendering.renderToString(
+      var response = ReactServerAsyncRendering.renderToStringStream(
         <Parent />, stream
       );
 
@@ -174,7 +174,7 @@ describe('ReactServerAsyncRendering', function() {
           },
         });
 
-        var response = ReactServerAsyncRendering.renderToString(
+        var response = ReactServerAsyncRendering.renderToStringStream(
           <TestComponent />, stream
         );
 
@@ -267,7 +267,7 @@ describe('ReactServerAsyncRendering', function() {
       });
 
       var hash;
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <TestComponent name="x" />, stream
       ).then(function(hashValue) {
         hash = hashValue;
@@ -277,19 +277,19 @@ describe('ReactServerAsyncRendering', function() {
 
     it('should throw with silly args', function() {
       expect(
-        ReactServerAsyncRendering.renderToString.bind(
+        ReactServerAsyncRendering.renderToStringStream.bind(
           ReactServerAsyncRendering,
           'not a component',
           concatStream({encoding: "string"}, function(result) {})
         )
       ).toThrow(
-        'Invariant Violation: renderToString(): You must pass ' +
+        'Invariant Violation: renderToStringStream(): You must pass ' +
         'a valid ReactElement.'
       );
     });
   });
 
-  describe('renderToStaticMarkup', function() {
+  describe('renderToStaticMarkupStream', function() {
     it('should not put checksum and React ID on components', function() {
       var stream = concatStream({encoding: "string"}, function(result) {
         expect(result).toBe('<span><div>inner text</div></span>');
@@ -306,7 +306,7 @@ describe('ReactServerAsyncRendering', function() {
         },
       });
 
-      var response = ReactServerAsyncRendering.renderToStaticMarkup(
+      var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
         <TestComponent />, stream
       );
 
@@ -323,7 +323,7 @@ describe('ReactServerAsyncRendering', function() {
         },
       });
 
-      var response = ReactServerAsyncRendering.renderToStaticMarkup(
+      var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
         <TestComponent />, stream
       );
 
@@ -334,7 +334,7 @@ describe('ReactServerAsyncRendering', function() {
       var EventPluginHub = require('EventPluginHub');
       var cb = mocks.getMockFunction();
 
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <span onClick={cb}>hello world</span>,
         concatStream({encoding: "string"}, function(result) {})
       );
@@ -380,7 +380,7 @@ describe('ReactServerAsyncRendering', function() {
           expect(result).toBe('<span>Component name: TestComponent</span>');
         });
 
-        var response = ReactServerAsyncRendering.renderToStaticMarkup(
+        var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
           <TestComponent />, stream
         );
 
@@ -399,13 +399,13 @@ describe('ReactServerAsyncRendering', function() {
 
     it('should throw with silly args', function() {
      expect(
-        ReactServerAsyncRendering.renderToStaticMarkup.bind(
+        ReactServerAsyncRendering.renderToStaticMarkupStream.bind(
           ReactServerAsyncRendering,
           'not a component',
           concatStream({encoding: "string"}, function(result) {})
         )
       ).toThrow(
-        'Invariant Violation: renderToStaticMarkup(): You must pass ' +
+        'Invariant Violation: renderToStaticMarkupStream(): You must pass ' +
         'a valid ReactElement.'
       );
     });
@@ -428,7 +428,7 @@ describe('ReactServerAsyncRendering', function() {
         // We shouldn't ever be calling this on the server
         throw new Error('Browser reconcile transaction should not be used');
       };
-      ReactServerAsyncRendering.renderToString(
+      ReactServerAsyncRendering.renderToStringStream(
         <Component />, stream
       );
 

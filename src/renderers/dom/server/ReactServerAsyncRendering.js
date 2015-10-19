@@ -30,10 +30,10 @@ var rollingAdler32 = require('rollingAdler32');
  * @param {Stream} stream to write to
  * @return {Promise(Number)} a Promise of the markup checksum, which resolves when the method is done.
  */
-function renderToString(element, stream) {
+function renderToStringStream(element, stream) {
   invariant(
     ReactElement.isValidElement(element),
-    'renderToString(): You must pass a valid ReactElement.'
+    'renderToStringStream(): You must pass a valid ReactElement.'
   );
 
   var transaction;
@@ -74,10 +74,10 @@ function renderToString(element, stream) {
  * @return {Promise} a Promise that resolves when the method is done. 
  * (for generating static pages)
  */
-function renderToStaticMarkup(element, stream) {
+function renderToStaticMarkupStream(element, stream) {
   invariant(
     ReactElement.isValidElement(element),
-    'renderToStaticMarkup(): You must pass a valid ReactElement.'
+    'renderToStaticMarkupStream(): You must pass a valid ReactElement.'
   );
 
   var transaction;
@@ -102,6 +102,6 @@ function renderToStaticMarkup(element, stream) {
 }
 
 module.exports = {
-  renderToString: renderToString,
-  renderToStaticMarkup: renderToStaticMarkup,
+  renderToStringStream: renderToStringStream,
+  renderToStaticMarkupStream: renderToStaticMarkupStream,
 };

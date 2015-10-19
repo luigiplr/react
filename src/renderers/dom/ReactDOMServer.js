@@ -22,8 +22,8 @@ var ReactDOMServer = {
   renderToString: ReactServerRendering.renderToString,
   renderToStaticMarkup: ReactServerRendering.renderToStaticMarkup,
   version: ReactVersion,
-  asyncRenderToString: ReactServerAsyncRendering.renderToString,
-  asyncRenderToStaticMarkup: ReactServerAsyncRendering.renderToStaticMarkup,
+  renderToStringStream: ReactServerAsyncRendering.renderToStringStream,
+  renderToStaticMarkupStream: ReactServerAsyncRendering.renderToStaticMarkupStream,
 };
 
 module.exports = ReactDOMServer;
