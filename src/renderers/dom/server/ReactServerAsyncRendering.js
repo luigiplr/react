@@ -27,7 +27,8 @@ var rollingAdler32 = require('rollingAdler32');
 
 /**
  * @param {ReactElement} element
- * @return {Number} the markup checksum
+ * @param {Stream} stream to write to
+ * @return {Promise(Number)} a Promise of the markup checksum, which resolves when the method is done.
  */
 function renderToString(element, stream) {
   invariant(
@@ -53,11 +54,12 @@ function renderToString(element, stream) {
         rollingHash = rollingAdler32(text, rollingHash);
       }
     }
-    return transaction.perform(function() {
+    var hash = transaction.perform(function() {
       var componentInstance = instantiateReactComponent(element, null);
       componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
       return rollingHash.hash();
     }, null);
+    return Promise.resolve(hash);
   } finally {
     ReactServerRenderingTransaction.release(transaction);
     // Revert to the DOM batching strategy since these two renderers
@@ -68,7 +70,8 @@ function renderToString(element, stream) {
 
 /**
  * @param {ReactElement} element
- * @return {string} the HTML markup, without the extra React ID and checksum
+ * @param {Stream} stream to write markup to, without the extra React ID
+ * @return {Promise} a Promise that resolves when the method is done. 
  * (for generating static pages)
  */
 function renderToStaticMarkup(element, stream) {
@@ -84,10 +87,12 @@ function renderToStaticMarkup(element, stream) {
     var id = ReactInstanceHandles.createReactRootID();
     transaction = ReactServerRenderingTransaction.getPooled(true);
 
-    return transaction.perform(function() {
+    transaction.perform(function() {
       var componentInstance = instantiateReactComponent(element, null);
       componentInstance.mountComponentAsync(id, transaction, emptyObject, stream);
     }, null);
+
+    return Promise.resolve(null);
   } finally {
     ReactServerRenderingTransaction.release(transaction);
     // Revert to the DOM batching strategy since these two renderers

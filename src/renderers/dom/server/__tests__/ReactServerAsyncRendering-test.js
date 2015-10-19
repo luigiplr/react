@@ -266,10 +266,13 @@ describe('ReactServerAsyncRendering', function() {
         expect(numClicks).toEqual(1);
       });
 
-      var hash = ReactServerAsyncRendering.renderToString(
+      var hash;
+      ReactServerAsyncRendering.renderToString(
         <TestComponent name="x" />, stream
-      );
-      stream.end();
+      ).then(function(hashValue) {
+        hash = hashValue;
+        stream.end();
+      })
     });
 
     it('should throw with silly args', function() {
