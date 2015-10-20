@@ -25,17 +25,73 @@ var instantiateReactComponent = require('instantiateReactComponent');
 var invariant = require('invariant');
 var rollingAdler32 = require('rollingAdler32');
 
+function bufferedStream(stream) {
+  // for now, we need to buffer some of the stream coming out; express performs really poorly if you 
+  // chunk out a few bytes at a time. I plan to move this functionality into react-dom-stream.
+  return {
+    write: function(data, bufferSize) {
+      this.buffer = this.buffer || "";
+      this.buffer += data;
+
+      if (this.buffer.length >= bufferSize) {
+        this.writeCount = this.writeCount ? this.writeCount + 1 : 1;
+        stream.write(this.buffer);
+        this.buffer = "";
+      }
+    },
+
+    flush: function() {
+      stream.write(this.buffer);
+    },
+
+    end: function(data) {
+      stream.write(this.buffer);
+      console.log("Write Count: " + (this.writeCount + 1));
+      stream.end(data);
+    }
+  }
+
+}
+
+function hashedStream(stream) {
+  return {
+    rollingHash: rollingAdler32(''),
+
+    write: function(text) {
+      // pass through to the underlying stream.
+      stream.write(text);
+      // also, add to the rolling hash.
+      this.rollingHash = rollingAdler32(text, this.rollingHash);
+    },
+    
+    flush: function() { 
+      stream.flush(); 
+    },
+    
+    end: function(data) { 
+      stream.end(data); 
+      this.rollingHash = rollingAdler32(data, this.rollingHash);
+    },
+
+    hash: function() { return this.rollingHash.hash(); }
+  }
+}
+
 /**
  * @param {ReactElement} element
  * @param {Stream} stream to write to
  * @return {Promise(Number)} a Promise of the markup checksum, which resolves when the method is done.
  */
-function renderToStringStream(element, stream) {
+function renderToStringStream(element, stream, options) {
   invariant(
     ReactElement.isValidElement(element),
     'renderToStringStream(): You must pass a valid ReactElement.'
   );
 
+  var bufferSize = 10000;
+  if (options && options.bufferSize) {
+    bufferSize = options.bufferSize;
+  }
   var transaction;
   try {
     ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
@@ -43,21 +99,13 @@ function renderToStringStream(element, stream) {
     var id = ReactInstanceHandles.createReactRootID();
     transaction = ReactServerRenderingTransaction.getPooled(false);
 
-    var rollingHash = rollingAdler32('');
-    // wrap the stream so that we can update the hash every time a string is written to the
-    // output.
-    var wrappedStream = {
-      write: function(text) {
-        // pass through to the underlying stream.
-        stream.write(text);
-        // also, add to the rolling hash.
-        rollingHash = rollingAdler32(text, rollingHash);
-      }
-    }
+    stream = bufferedStream(stream, bufferSize);
+    stream = hashedStream(stream);
     var hash = transaction.perform(function() {
       var componentInstance = instantiateReactComponent(element, null);
-      componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
-      return rollingHash.hash();
+      componentInstance.mountComponentAsync(id, transaction, emptyObject, stream);
+      stream.flush();
+      return stream.hash();
     }, null);
     return Promise.resolve(hash);
   } finally {
@@ -74,12 +122,16 @@ function renderToStringStream(element, stream) {
  * @return {Promise} a Promise that resolves when the method is done. 
  * (for generating static pages)
  */
-function renderToStaticMarkupStream(element, stream) {
+function renderToStaticMarkupStream(element, stream, options) {
   invariant(
     ReactElement.isValidElement(element),
     'renderToStaticMarkupStream(): You must pass a valid ReactElement.'
   );
 
+  var bufferSize = 10000;
+  if (options && options.bufferSize) {
+    bufferSize = options.bufferSize;
+  }
   var transaction;
   try {
     ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
@@ -87,9 +139,11 @@ function renderToStaticMarkupStream(element, stream) {
     var id = ReactInstanceHandles.createReactRootID();
     transaction = ReactServerRenderingTransaction.getPooled(true);
 
+    stream = bufferedStream(stream, bufferSize);
     transaction.perform(function() {
       var componentInstance = instantiateReactComponent(element, null);
       componentInstance.mountComponentAsync(id, transaction, emptyObject, stream);
+      stream.flush();
     }, null);
 
     return Promise.resolve(null);
