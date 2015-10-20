@@ -1,111 +1,108 @@
-# react-dom-stream
+# [React](https://facebook.github.io/react/) [![Build Status](https://travis-ci.org/facebook/react.svg?branch=0.14-stable)](https://travis-ci.org/facebook/react) [![npm version](https://badge.fury.io/js/react.svg)](http://badge.fury.io/js/react)
 
-This is a React renderer for generating markup on a NodeJS server, but unlike the built-in `ReactDOM.renderToString`, this module renders to a stream.
+React is a JavaScript library for building user interfaces.
 
-## Why?
+* **Just the UI:** Lots of people use React as the V in MVC. Since React makes no assumptions about the rest of your technology stack, it's easy to try it out on a small feature in an existing project.
+* **Virtual DOM:** React abstracts away the DOM from you, giving a simpler programming model and better performance. React can also render on the server using Node, and it can power native apps using [React Native](https://facebook.github.io/react-native/).
+* **Data flow:** React implements one-way reactive data flow which reduces boilerplate and is easier to reason about than traditional data binding.
 
-One difficulty with `ReactDOM.renderToString` is that it is synchronous, and it can become a performance challenge in server-side rendering of React sites. This is especially true of pages with larger HTML payloads, because `ReactDOM.renderToString`'s runtime tends to scale more or less linearly with the number of virtual DOM nodes. This leads to three problems:
+**NEW**! Check out our newest project [React Native](https://github.com/facebook/react-native), which uses React and JavaScript to create native mobile apps.
 
-1) The server cannot send out any part of the response until all the HTML is created, which means that browsers can't start working on painting the page until the renderToString call is done. With larger pages, this can introduce a latency of hundreds of milliseconds.
-2) The server has to allocate memory for the entire HTML string.
-3) One call to `ReactDOM.renderToString` can dominate the CPU and starve out other requests. This is particularly troublesome on servers that serve a mix of small and large pages.
+[Learn how to use React in your own project](https://facebook.github.io/react/docs/getting-started.html).
 
+## Examples
 
-This project attempts to fix the first two problems by rendering directly to a stream, and I hope to work on the third problem as the project develops.
+We have several examples [on the website](https://facebook.github.io/react/). Here is the first one to get you started:
 
-When web servers stream out their content, browsers can render pages for users before the entire response is finished. To learn more about streaming HTML to browsers, see [HTTP Archive: adding flush](http://www.stevesouders.com/blog/2013/01/31/http-archive-adding-flush/) and [Flushing the Document Early](http://www.stevesouders.com/blog/2009/05/18/flushing-the-document-early/).
-
-My preliminary tests have found that this renderer keeps the TTFB nearly constant as the size of a page gets larger. TTLB can be slightly longer than React's methods (~3%) when testing with zero network latency, but TTLB is as much as 47% less than React when real network speeds are used. In a real world test on Heroku, for example, I found that compared to React TTFB was 65% less and TTLB was 37% less for a 108KB page.
-
-## How?
-
-There are three public methods in this project: `renderToString`, `renderToStaticMarkup`, and `render`, and they are intended as nearly drop-in replacements for the corresponding methods in `react-dom`.
-
-### `renderToString(reactElement, stream, options) : Promise(hash)`
-
-To use this method, you need to require `react-dom-stream/server`.
-
-This method renders `reactElement` to `stream`. The Promise that it returns resolves when the method is done writing to the stream, and the Promise resolves to a hash that must be passed to `react-dom-stream`'s `render` on the client side (see below.)
-
-In an Express app, it is used like this:
-
-```javascript
-var ReactDOMStream = require("react-dom-stream/server");
-
-app.get('/', function (req, res) {
-	ReactDOMStream.renderToString(<Foo prop={value}/>, res)
-		.then(function(hash) {
-			// TODO: write the hash out to the page in a script tag
-			res.end();
-		});
+```js
+var HelloMessage = React.createClass({
+  render: function() {
+    return <div>Hello {this.props.name}</div>;
+  }
 });
+
+React.render(
+  <HelloMessage name="John" />,
+  document.getElementById('container')
+);
 ```
 
-Or, if you are using async/await from ES7, you can use it like this:
+This example will render "Hello John" into a container on the page.
 
-```javascript
-import ReactDOMStream from "react-dom-stream/server";
+You'll notice that we used an HTML-like syntax; [we call it JSX](https://facebook.github.io/react/docs/jsx-in-depth.html). JSX is not required to use React, but it makes code more readable, and writing it feels like writing HTML. A simple transform is included with React that allows converting JSX into native JavaScript for browsers to digest.
 
-app.get('/', async function (req, res) {
-	var hash = await ReactDOMStream.renderToString(<Foo prop={value}/>, res);
-	// TODO: write the hash out to the page in a script tag
-	res.end();
-});
+## Installation
+
+The fastest way to get started is to serve JavaScript from the CDN (also available on [cdnjs](https://cdnjs.com/libraries/react) and [jsdelivr](http://www.jsdelivr.com/#!react)):
+
+```html
+<!-- The core React library -->
+<script src="https://fb.me/react-0.14.0.js"></script>
+<!-- The ReactDOM Library -->
+<script src="https://fb.me/react-dom-0.14.0.js"></script>
 ```
 
-`options` is currently ignored, but I have plans to add it soon.
+We've also built a [starter kit](https://facebook.github.io/react/downloads/react-0.14.0.zip) which might be useful if this is your first time using React. It includes a webpage with an example of using React with live code.
 
-### `renderToStaticMarkup(reactElement, stream, options): Promise()`
+If you'd like to use [bower](http://bower.io), it's as easy as:
 
-To use this method, you need to require `react-dom-stream/server`.
-
-This method renders `reactElement` to `stream`. Like `ReactDOM.renderToStaticMarkup`, it is only good for static pages where you don't intend to use React to render on the client side, and it generates smaller sized markup than `reactToStringStream`. The Promise that it returns resolves when the method is done writing to the stream.
-
-In an Express app, it is used like this:
-
-```javascript
-var ReactDOMStream = require("react-dom-stream/server");
-
-app.get('/', function (req, res) {
-	ReactDOMStream.renderToStaticMarkup(<Foo prop={value}/>, res)
-		.then(function() {
-			res.end();
-		});
-});
+```sh
+bower install --save react
 ```
 
-Or, if you are using async/await from ES7, you can use it like this:
+## Contribute
 
-```javascript
-import ReactDOMStream from "react-dom-stream/server";
+The main purpose of this repository is to continue to evolve React core, making it faster and easier to use. If you're interested in helping with that, then keep reading. If you're not interested in helping right now that's ok too. :) Any feedback you have about using React would be greatly appreciated.
 
-app.get('/', async function (req, res) {
-	await ReactDOMStream.renderToStaticMarkup(<Foo prop={value}/>, res);
-	res.end();
-});
+### Building Your Copy of React
+
+The process to build `react.js` is built entirely on top of node.js, using many libraries you may already be familiar with.
+
+#### Prerequisites
+
+* You have `node` installed at v0.10.0+ (it might work at lower versions, we just haven't tested) and `npm` at v2.0.0+.
+* You are familiar with `npm` and know whether or not you need to use `sudo` when installing packages globally.
+* You are familiar with `git`.
+
+#### Build
+
+Once you have the repository cloned, building a copy of `react.js` is really easy.
+
+```sh
+# grunt-cli is needed by grunt; you might have this installed already
+npm install -g grunt-cli
+npm install
+grunt build
 ```
 
-`options` is currently ignored, but I have plans to add it soon.
+At this point, you should now have a `build/` directory populated with everything you need to use React. The examples should all work.
 
-### `render(reactElement, domElement, hash)`
+### Grunt
 
-To use this method, you need to require `react-dom-stream`.
+We use grunt to automate many tasks. Run `grunt -h` to see a mostly complete listing. The important ones to know:
 
-If you generate server markup with this project, you cannot use the standard `ReactDOM.render`; you need to use the `render` method in `react-dom-stream`. The only difference between `react-dom`'s version and this one is that this also takes in the hash returned from `renderToString`:
-
-```javascript
-var ReactDOMStream = require("react-dom-stream");
-
-var hash = 1234567890; // returned from renderToString's promise and read out into the page
-ReactDOMStream.render(<Foo prop={value}/>, document.getElementById("bar"), hash);
+```sh
+# Build and run tests with PhantomJS
+grunt test
+# Build and run tests in your browser
+grunt test --debug
+# Lint the code with ESLint
+grunt lint
+# Wipe out build directory
+grunt clean
 ```
 
-## Who?
+### License
 
-`react-dom-stream` is written by Sasha Aickin, though most of the code is from Facebook's React.
+React is [BSD licensed](./LICENSE). We also provide an additional [patent grant](./PATENTS).
 
-## Status
+React documentation is [Creative Commons licensed](./LICENSE-docs).
 
-This project is of alpha quality; it has not been used in production yet. It does, however, pass all of the automated tests that are currently run on `react-dom` in the main React project.
+Examples provided in this repository and in the documentation are [separately licensed](./LICENSE-examples).
 
-This module is forked from Facebook's React project. All extra code and modifications are offered under the Apache 2.0 license.
+### More…
+
+There's only so much we can cram in here. To read more about the community and guidelines for submitting pull requests, please read the [Contributing document](CONTRIBUTING.md).
+
+## Troubleshooting
+See the [Troubleshooting Guide](https://github.com/facebook/react/wiki/Troubleshooting)
