@@ -25,28 +25,29 @@ var instantiateReactComponent = require('instantiateReactComponent');
 var invariant = require('invariant');
 var rollingAdler32 = require('rollingAdler32');
 
-function bufferedStream(stream) {
+function bufferedStream(stream, bufferSize) {
   // for now, we need to buffer some of the stream coming out; express performs really poorly if you 
   // chunk out a few bytes at a time. I plan to move this functionality into react-dom-stream.
   return {
-    write: function(data, bufferSize) {
+    write: function(data) {
       this.buffer = this.buffer || "";
       this.buffer += data;
 
       if (this.buffer.length >= bufferSize) {
-        this.writeCount = this.writeCount ? this.writeCount + 1 : 1;
         stream.write(this.buffer);
+        stream.flush();
         this.buffer = "";
       }
     },
 
     flush: function() {
       stream.write(this.buffer);
+      stream.flush();
     },
 
     end: function(data) {
       stream.write(this.buffer);
-      console.log("Write Count: " + (this.writeCount + 1));
+      stream.flush();
       stream.end(data);
     }
   }
