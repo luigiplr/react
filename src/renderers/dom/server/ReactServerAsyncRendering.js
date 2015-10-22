@@ -35,19 +35,19 @@ function bufferedStream(stream, bufferSize) {
 
       if (this.buffer.length >= bufferSize) {
         stream.write(this.buffer);
-        stream.flush();
+        if (stream.flush) stream.flush();
         this.buffer = "";
       }
     },
 
     flush: function() {
       stream.write(this.buffer);
-      stream.flush();
+      if (stream.flush) stream.flush();
     },
 
     end: function(data) {
       stream.write(this.buffer);
-      stream.flush();
+      if (stream.flush) stream.flush();
       stream.end(data);
     }
   }
@@ -66,7 +66,7 @@ function hashedStream(stream) {
     },
     
     flush: function() { 
-      stream.flush(); 
+      if (stream.flush) stream.flush(); 
     },
     
     end: function(data) { 
