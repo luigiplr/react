@@ -89,31 +89,60 @@ function renderToStringStream(element, stream, options) {
     'renderToStringStream(): You must pass a valid ReactElement.'
   );
 
+  var usingV1 = false;
+  // deprecation warning for version 2. The v1 API allowed you to pass in a stream and returned
+  // a Promise of a hash ; the v2 API returns a stream with a .hash property.
+  // v1 also allowed an options hash, which v2 will not.
+  if (stream) {
+    usingV1 = true;
+    console.error(
+      "You are using v1.x of the renderToString API, which is deprecated. " +
+      "Instead of accepting a stream parameter and returning a Promise of a hash, the API " + 
+      "now returns a stream with a hash Promise property. " + 
+      "Support for this version of the API will be removed in the 3.0.0 version of react-dom-stream. " +
+      "Please update your code, and for more info, check out (TODO: add URL here)."
+      );
+  } else {
+    stream = require("stream").PassThrough();
+  }
+
   var bufferSize = 10000;
   if (options && options.bufferSize) {
+    console.error(
+      "The options hash and bufferSize arguments have been deprecated and will be removed in " +
+      "the v3.0.0 of react-dom-stream. " +
+      "Please update your code, and for more info, check out (TODO: add URL here)."
+      );
     bufferSize = options.bufferSize;
   }
-  var transaction;
-  try {
-    ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
+  var hashPromise = new Promise(function(resolve, reject) {
+    var transaction;
+    try {
+      ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
 
-    var id = ReactInstanceHandles.createReactRootID();
-    transaction = ReactServerRenderingTransaction.getPooled(false);
+      var id = ReactInstanceHandles.createReactRootID();
+      transaction = ReactServerRenderingTransaction.getPooled(false);
 
-    stream = bufferedStream(stream, bufferSize);
-    stream = hashedStream(stream);
-    var hash = transaction.perform(function() {
-      var componentInstance = instantiateReactComponent(element, null);
-      componentInstance.mountComponentAsync(id, transaction, emptyObject, stream);
-      stream.flush();
-      return stream.hash();
-    }, null);
-    return Promise.resolve(hash);
-  } finally {
-    ReactServerRenderingTransaction.release(transaction);
-    // Revert to the DOM batching strategy since these two renderers
-    // currently share these stateful modules.
-    ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+      var wrappedStream = hashedStream(bufferedStream(stream, bufferSize));
+      transaction.perform(function() {
+        var componentInstance = instantiateReactComponent(element, null);
+        componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
+        wrappedStream.flush();
+        resolve(wrappedStream.hash());
+      }, null);
+    } finally {
+      ReactServerRenderingTransaction.release(transaction);
+      // Revert to the DOM batching strategy since these two renderers
+      // currently share these stateful modules.
+      ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+    }
+  });
+
+  if (usingV1) {
+    return hashPromise;
+  } else {
+    stream.hash = hashPromise;
+    return stream;
   }
 }
 
@@ -129,30 +158,59 @@ function renderToStaticMarkupStream(element, stream, options) {
     'renderToStaticMarkupStream(): You must pass a valid ReactElement.'
   );
 
+  var usingV1 = false;
+  // deprecation warning for version 2. The v1 API allowed you to pass in a stream and returned
+  // a Promise of a hash ; the v2 API returns a stream with a .hash property.
+  // v1 also allowed an options hash, which v2 will not.
+  if (stream) {
+    usingV1 = true;
+    console.error(
+      "You are using v1.x of the renderToMarkupStream API, which is deprecated. " +
+      "Instead of accepting a stream parameter and returning a Promise, the API now just returns a stream. " + 
+      "Support for this version of the API will be removed in the 3.0.0 version of react-dom-stream. " +
+      "Please update your code, and for more info, check out (TODO: add URL here)."
+      );
+  } else {
+    stream = require("stream").PassThrough();
+  }
+
   var bufferSize = 10000;
   if (options && options.bufferSize) {
+    console.error(
+      "The options hash and bufferSize arguments have been deprecated and will be removed in " +
+      "the v3.0.0 of react-dom-stream. " +
+      "Please update your code, and for more info, check out (TODO: add URL here)."
+      );
     bufferSize = options.bufferSize;
   }
-  var transaction;
-  try {
-    ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
+  var promise = new Promise(function(resolve, reject) {
+    var transaction;
+    try {
+      ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
 
-    var id = ReactInstanceHandles.createReactRootID();
-    transaction = ReactServerRenderingTransaction.getPooled(true);
+      var id = ReactInstanceHandles.createReactRootID();
+      transaction = ReactServerRenderingTransaction.getPooled(true);
 
-    stream = bufferedStream(stream, bufferSize);
-    transaction.perform(function() {
-      var componentInstance = instantiateReactComponent(element, null);
-      componentInstance.mountComponentAsync(id, transaction, emptyObject, stream);
-      stream.flush();
-    }, null);
+      var wrappedStream = bufferedStream(stream, bufferSize);
+      transaction.perform(function() {
+        var componentInstance = instantiateReactComponent(element, null);
+        componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
+        wrappedStream.flush();
+      }, null);
 
-    return Promise.resolve(null);
-  } finally {
-    ReactServerRenderingTransaction.release(transaction);
-    // Revert to the DOM batching strategy since these two renderers
-    // currently share these stateful modules.
-    ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+      return Promise.resolve(null);
+    } finally {
+      ReactServerRenderingTransaction.release(transaction);
+      // Revert to the DOM batching strategy since these two renderers
+      // currently share these stateful modules.
+      ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+    }
+  });
+
+  if (usingV1) {
+    return promise;
+  } else {
+    return stream;
   }
 }
 

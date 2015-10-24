@@ -54,11 +54,8 @@ describe('ReactServerAsyncRendering', function() {
       });
 
       ReactServerAsyncRendering.renderToStringStream(
-        <span>hello world</span>,
-        stream
-      );
-
-      stream.end();
+        <span>hello world</span>
+      ).pipe(stream);
     });
 
     it('should generate simple markup for self-closing tags', function() {
@@ -69,11 +66,8 @@ describe('ReactServerAsyncRendering', function() {
       });
 
       ReactServerAsyncRendering.renderToStringStream(
-        <img />,
-        stream
-      );
-
-      stream.end();
+        <img />
+      ).pipe(stream);
     });
 
     it('should generate simple markup for attribute with `>` symbol', function() {
@@ -82,12 +76,9 @@ describe('ReactServerAsyncRendering', function() {
           '<img data-attr="&gt;" ' + ID_ATTRIBUTE_NAME + '="[^"]+"/>'
         );
       });
-      var response = ReactServerAsyncRendering.renderToStringStream(
-        <img data-attr=">" />,
-        stream
-      );
-
-      stream.end();
+      ReactServerAsyncRendering.renderToStringStream(
+        <img data-attr=">" />
+      ).pipe(stream);
     });
 
     it('should not register event listeners', function() {
@@ -96,10 +87,9 @@ describe('ReactServerAsyncRendering', function() {
       var cb = mocks.getMockFunction();
 
       ReactServerAsyncRendering.renderToStringStream(
-        <span onClick={cb}>hello world</span>,
-        stream
-      );
-      stream.end();
+        <span onClick={cb}>hello world</span>
+      ).pipe(stream);
+
       expect(EventPluginHub.__getListenerBank()).toEqual({});
     });
 
@@ -124,11 +114,9 @@ describe('ReactServerAsyncRendering', function() {
           return <span>My name is {this.props.name}</span>;
         },
       });
-      var response = ReactServerAsyncRendering.renderToStringStream(
-        <Parent />, stream
-      );
-
-      stream.end();
+      ReactServerAsyncRendering.renderToStringStream(
+        <Parent />
+      ).pipe(stream);
     });
 
     it('should only execute certain lifecycle methods', function() {
@@ -174,11 +162,9 @@ describe('ReactServerAsyncRendering', function() {
           },
         });
 
-        var response = ReactServerAsyncRendering.renderToStringStream(
-          <TestComponent />, stream
-        );
-
-        stream.end();
+        ReactServerAsyncRendering.renderToStringStream(
+          <TestComponent />
+        ).pipe(stream);
 
         expect(lifecycle).toEqual(
           ['getInitialState', 'componentWillMount', 'render']
@@ -267,9 +253,13 @@ describe('ReactServerAsyncRendering', function() {
       });
 
       var hash;
-      ReactServerAsyncRendering.renderToStringStream(
-        <TestComponent name="x" />, stream
-      ).then(function(hashValue) {
+      var renderedStream = ReactServerAsyncRendering.renderToStringStream(
+        <TestComponent name="x" />
+      );
+
+      renderedStream.pipe(stream, {end:false});
+
+      renderedStream.hash.then(function(hashValue) {
         hash = hashValue;
         stream.end();
       })
@@ -306,11 +296,9 @@ describe('ReactServerAsyncRendering', function() {
         },
       });
 
-      var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
-        <TestComponent />, stream
-      );
-
-      stream.end();
+      ReactServerAsyncRendering.renderToStaticMarkupStream(
+        <TestComponent />
+      ).pipe(stream);
     });
 
     it('should not put checksum and React ID on text components', function() {
@@ -323,11 +311,9 @@ describe('ReactServerAsyncRendering', function() {
         },
       });
 
-      var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
-        <TestComponent />, stream
-      );
-
-      stream.end();
+      ReactServerAsyncRendering.renderToStaticMarkupStream(
+        <TestComponent />
+      ).pipe(stream);
     });
 
     it('should not register event listeners', function() {
@@ -335,9 +321,9 @@ describe('ReactServerAsyncRendering', function() {
       var cb = mocks.getMockFunction();
 
       ReactServerAsyncRendering.renderToStringStream(
-        <span onClick={cb}>hello world</span>,
-        concatStream({encoding: "string"}, function(result) {})
-      );
+        <span onClick={cb}>hello world</span>)
+      .pipe(concatStream({encoding: "string"}, function(result) {}));
+      
       expect(EventPluginHub.__getListenerBank()).toEqual({});
     });
 
@@ -380,11 +366,10 @@ describe('ReactServerAsyncRendering', function() {
           expect(result).toBe('<span>Component name: TestComponent</span>');
         });
 
-        var response = ReactServerAsyncRendering.renderToStaticMarkupStream(
-          <TestComponent />, stream
-        );
+        ReactServerAsyncRendering.renderToStaticMarkupStream(
+          <TestComponent />
+        ).pipe(stream);
 
-        stream.end();
         expect(lifecycle).toEqual(
           ['getInitialState', 'componentWillMount', 'render']
         );
@@ -429,10 +414,8 @@ describe('ReactServerAsyncRendering', function() {
         throw new Error('Browser reconcile transaction should not be used');
       };
       ReactServerAsyncRendering.renderToStringStream(
-        <Component />, stream
-      );
-
-      stream.end();
+        <Component />
+      ).pipe(stream);
     });
   });
 });
