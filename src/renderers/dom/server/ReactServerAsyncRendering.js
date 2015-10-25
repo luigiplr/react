@@ -72,7 +72,9 @@ function hashedStream(stream) {
     
     end: function(data) { 
       stream.end(data); 
-      this.rollingHash = rollingAdler32(data, this.rollingHash);
+      if (data) {
+        this.rollingHash = rollingAdler32(data, this.rollingHash);
+      }
     },
 
     hash: function() { return this.rollingHash.hash(); }
