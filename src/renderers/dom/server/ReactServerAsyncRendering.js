@@ -42,6 +42,7 @@ function bufferedStream(stream, bufferSize) {
 
     flush: function() {
       stream.write(this.buffer);
+      this.buffer = "";
       if (stream.flush) stream.flush();
     },
 
@@ -96,10 +97,10 @@ function renderToStringStream(element, stream, options) {
   if (stream) {
     usingV1 = true;
     console.error(
-      "You are using v1.x of the renderToString API, which is deprecated. " +
+      "You are using v0.1.x of the renderToString API, which is deprecated. " +
       "Instead of accepting a stream parameter and returning a Promise of a hash, the API " + 
       "now returns a stream with a hash Promise property. " + 
-      "Support for this version of the API will be removed in the 3.0.0 version of react-dom-stream. " +
+      "Support for this version of the API will be removed in the 0.3.x version of react-dom-stream. " +
       "Please update your code, and for more info, check out (TODO: add URL here)."
       );
   } else {
@@ -110,7 +111,7 @@ function renderToStringStream(element, stream, options) {
   if (options && options.bufferSize) {
     console.error(
       "The options hash and bufferSize arguments have been deprecated and will be removed in " +
-      "the v3.0.0 of react-dom-stream. " +
+      "the 0.3.x version of react-dom-stream. " +
       "Please update your code, and for more info, check out (TODO: add URL here)."
       );
     bufferSize = options.bufferSize;
@@ -166,9 +167,9 @@ function renderToStaticMarkupStream(element, stream, options) {
   if (stream) {
     usingV1 = true;
     console.error(
-      "You are using v1.x of the renderToMarkupStream API, which is deprecated. " +
+      "You are using v0.1.x of the renderToMarkupStream API, which is deprecated. " +
       "Instead of accepting a stream parameter and returning a Promise, the API now just returns a stream. " + 
-      "Support for this version of the API will be removed in the 3.0.0 version of react-dom-stream. " +
+      "Support for this version of the API will be removed in the 0.3.x version of react-dom-stream. " +
       "Please update your code, and for more info, check out (TODO: add URL here)."
       );
   } else {
@@ -179,7 +180,7 @@ function renderToStaticMarkupStream(element, stream, options) {
   if (options && options.bufferSize) {
     console.error(
       "The options hash and bufferSize arguments have been deprecated and will be removed in " +
-      "the v3.0.0 of react-dom-stream. " +
+      "the 0.3.x version of react-dom-stream. " +
       "Please update your code, and for more info, check out (TODO: add URL here)."
       );
     bufferSize = options.bufferSize;
