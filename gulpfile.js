@@ -41,6 +41,9 @@ var babelOpts = {
   _moduleMap: require('fbjs/module-map'),
 };
 
+// make sure that the react build doesn't think that "stream" is part of React.
+babelOpts._moduleMap["stream"] = "stream";
+
 gulp.task('react:clean', function(cb) {
   del([paths.react.lib], cb);
 });
