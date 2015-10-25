@@ -128,6 +128,7 @@ function renderToStringStream(element, stream, options) {
         var componentInstance = instantiateReactComponent(element, null);
         componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
         wrappedStream.flush();
+        wrappedStream.end();
         resolve(wrappedStream.hash());
       }, null);
     } finally {
@@ -196,9 +197,10 @@ function renderToStaticMarkupStream(element, stream, options) {
         var componentInstance = instantiateReactComponent(element, null);
         componentInstance.mountComponentAsync(id, transaction, emptyObject, wrappedStream);
         wrappedStream.flush();
+        wrappedStream.end();
       }, null);
 
-      return Promise.resolve(null);
+      resolve(null);
     } finally {
       ReactServerRenderingTransaction.release(transaction);
       // Revert to the DOM batching strategy since these two renderers
