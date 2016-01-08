@@ -43,7 +43,7 @@ assign(ReactEmptyComponent.prototype, {
       context
     );
   },
-  mountComponentAsync: function(rootID, transaction, context, writeFn, callback) {
+  mountComponentAsync: function(rootID, transaction, context, writeFn, cache, callback) {
     ReactEmptyComponentRegistry.registerNullComponentID(rootID);
     this._rootNodeID = rootID;
     return ReactReconciler.mountComponentAsync(
@@ -52,6 +52,7 @@ assign(ReactEmptyComponent.prototype, {
       transaction,
       context,
       writeFn,
+      cache,
       callback
     );
   },
