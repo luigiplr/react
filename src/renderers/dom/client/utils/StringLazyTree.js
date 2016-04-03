@@ -32,7 +32,7 @@ const queueSubTree = (tree, subTree, filter) => {
 
 const run = (tree, length) => {
   if (tree.childIndex >= tree.children.length) {
-    return {result:null, done:true};
+    return null;
   }
 
   var result = '';
@@ -46,16 +46,13 @@ const run = (tree, length) => {
     } else {
       // instantiate the child if necessary.
       if (!child.subTree) {
-        if (typeof child.fn !== 'function') {
-          console.log(child.fn);
-        }
         child.subTree = child.fn();
         child.fn = null;
       }
-      var childContent = run(child.subTree, length);
-      childText = childContent.result;
-      if (childContent.done) {
+      childText = run(child.subTree, length);
+      if (null === childText) {
         tree.childIndex++;
+        continue;
       }
     }
     if (child.filter) {
@@ -64,14 +61,14 @@ const run = (tree, length) => {
     result += childText;
     length -= childText.length;
     if (length <= 0) {
-      return {result, done:false};
+      return result;
     }
   }
-  return {result, done:true};
+  return result;
 };
 
 const runToFinish = (tree) => {
-  return run(tree, Infinity).result;
+  return run(tree, Infinity);
 };
 
 StringLazyTree.queueText = queueText;
