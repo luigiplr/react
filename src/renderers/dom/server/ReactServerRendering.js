@@ -18,6 +18,7 @@ var ReactServerBatchingStrategy = require('ReactServerBatchingStrategy');
 var ReactServerRenderingTransaction =
   require('ReactServerRenderingTransaction');
 var ReactUpdates = require('ReactUpdates');
+var StringLazyTree = require('StringLazyTree');
 
 var emptyObject = require('emptyObject');
 var instantiateReactComponent = require('instantiateReactComponent');
@@ -42,6 +43,7 @@ function renderToStringImpl(element, makeStaticMarkup) {
         ReactDOMContainerInfo(),
         emptyObject
       );
+      markup = StringLazyTree.runToFinish(markup);
       if (!makeStaticMarkup) {
         markup = ReactMarkupChecksum.addChecksumToMarkup(markup);
       }

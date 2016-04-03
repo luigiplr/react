@@ -26,6 +26,7 @@ var ReactPerf = require('ReactPerf');
 var ReactReconciler = require('ReactReconciler');
 var ReactUpdateQueue = require('ReactUpdateQueue');
 var ReactUpdates = require('ReactUpdates');
+var StringLazyTree = require('StringLazyTree');
 
 var emptyObject = require('emptyObject');
 var instantiateReactComponent = require('instantiateReactComponent');
@@ -596,6 +597,7 @@ var ReactMount = {
     );
 
     if (shouldReuseMarkup) {
+      markup = StringLazyTree.runToFinish(markup);
       var rootElement = getReactRootElementInContainer(container);
       if (ReactMarkupChecksum.canReuseMarkup(markup, rootElement)) {
         ReactDOMComponentTree.precacheNode(instance, rootElement);

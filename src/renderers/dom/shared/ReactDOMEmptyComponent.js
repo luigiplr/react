@@ -13,6 +13,7 @@
 
 var DOMLazyTree = require('DOMLazyTree');
 var ReactDOMComponentTree = require('ReactDOMComponentTree');
+var StringLazyTree = require('StringLazyTree');
 
 var assign = require('Object.assign');
 
@@ -44,13 +45,16 @@ assign(ReactDOMEmptyComponent.prototype, {
       ReactDOMComponentTree.precacheNode(this, node);
       return DOMLazyTree(node);
     } else {
+      var tree = StringLazyTree();
       if (transaction.renderToStaticMarkup) {
         // Normally we'd insert a comment node, but since this is a situation
         // where React won't take over (static pages), we can simply return
         // nothing.
-        return '';
+        StringLazyTree.queueText(tree, '');
+      } else {
+        StringLazyTree.queueText(tree, '<!--' + nodeValue + '-->');
       }
-      return '<!--' + nodeValue + '-->';
+      return tree;
     }
   },
   receiveComponent: function() {

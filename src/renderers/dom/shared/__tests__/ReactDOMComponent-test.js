@@ -12,6 +12,7 @@
 'use strict';
 
 var assign = require('Object.assign');
+var StringLazyTree = require('StringLazyTree');
 
 describe('ReactDOMComponent', function() {
   var React;
@@ -676,11 +677,12 @@ describe('ReactDOMComponent', function() {
 
       genMarkup = function(props) {
         var transaction = new ReactReconcileTransaction();
-        return (new NodeStub(props))._createContentMarkup(
-          transaction,
-          props,
-          {}
-        );
+        return StringLazyTree.runToFinish(
+          (new NodeStub(props))._createContentMarkup(
+            transaction,
+            props,
+            {}
+          ));
       };
 
       this.addMatchers({

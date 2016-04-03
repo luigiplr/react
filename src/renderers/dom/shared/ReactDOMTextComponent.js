@@ -15,6 +15,7 @@ var DOMChildrenOperations = require('DOMChildrenOperations');
 var DOMLazyTree = require('DOMLazyTree');
 var ReactDOMComponentTree = require('ReactDOMComponentTree');
 var ReactPerf = require('ReactPerf');
+var StringLazyTree = require('StringLazyTree');
 
 var assign = require('Object.assign');
 var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
@@ -103,19 +104,22 @@ assign(ReactDOMTextComponent.prototype, {
       this._closingComment = closingComment;
       return lazyTree;
     } else {
+      var tree = StringLazyTree();
       var escapedText = escapeTextContentForBrowser(this._stringText);
 
       if (transaction.renderToStaticMarkup) {
         // Normally we'd wrap this between comment nodes for the reasons stated
         // above, but since this is a situation where React won't take over
         // (static pages), we can simply return the text as it is.
-        return escapedText;
+        StringLazyTree.queueText(tree, escapedText);
+      } else {
+        StringLazyTree.queueText(tree,
+          '<!--' + openingValue + '-->' + escapedText +
+          '<!--' + closingValue + '-->'
+        );
       }
 
-      return (
-        '<!--' + openingValue + '-->' + escapedText +
-        '<!--' + closingValue + '-->'
-      );
+      return tree;
     }
   },
 

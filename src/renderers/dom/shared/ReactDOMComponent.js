@@ -34,6 +34,7 @@ var ReactDOMSelect = require('ReactDOMSelect');
 var ReactDOMTextarea = require('ReactDOMTextarea');
 var ReactMultiChild = require('ReactMultiChild');
 var ReactPerf = require('ReactPerf');
+var StringLazyTree = require('StringLazyTree');
 
 var assign = require('Object.assign');
 var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
@@ -463,6 +464,7 @@ ReactDOMComponent.Mixin = {
     nativeContainerInfo,
     context
   ) {
+
     this._rootNodeID = globalIdCounter++;
     this._domID = nativeContainerInfo._idCounter++;
     this._nativeParent = nativeParent;
@@ -579,14 +581,49 @@ ReactDOMComponent.Mixin = {
       this._createInitialChildren(transaction, props, context, lazyTree);
       mountImage = lazyTree;
     } else {
-      var tagOpen = this._createOpenTagMarkupAndPutListeners(transaction, props);
-      var tagContent = this._createContentMarkup(transaction, props, context);
-      if (!tagContent && omittedCloseTags[this._tag]) {
-        mountImage = tagOpen + '/>';
-      } else {
-        mountImage =
-          tagOpen + '>' + tagContent + '</' + this._currentElement.type + '>';
-      }
+      var result = StringLazyTree();
+
+      StringLazyTree.queueText(result,
+        this._createOpenTagMarkupAndPutListeners(transaction, props));
+
+      var hasBody = false;
+      var tagBodyFilter = (input) => {
+        if (!hasBody && input && input.length > 0) {
+          if (newlineEatingTags[this._tag] && input.charAt(0) === '\n') {
+            // text/html ignores the first character in these tags if it's a newline
+            // Prefer to break application/xml over text/html (for now) by adding
+            // a newline specifically to get eaten by the parser. (Alternately for
+            // textareas, replacing "^\n" with "\r\n" doesn't get eaten, and the first
+            // \r is normalized out by HTMLTextAreaElement#value.)
+            // See: <http://www.w3.org/TR/html-polyglot/#newlines-in-textarea-and-pre>
+            // See: <http://www.w3.org/TR/html5/syntax.html#element-restrictions>
+            // See: <http://www.w3.org/TR/html5/syntax.html#newlines>
+            // See: Parsing of "textarea" "listing" and "pre" elements
+            //  from <http://www.w3.org/TR/html5/syntax.html#parsing-main-inbody>
+            input = '\n' + input;
+          }
+          hasBody = true;
+          return '>' + input;
+        }
+        return input;
+      };
+      StringLazyTree.queueFunction(result,
+        () => this._createContentMarkup(transaction, props, context),
+        tagBodyFilter);
+
+      StringLazyTree.queueFunction(result, () => {
+        var tagClose = StringLazyTree();
+        if (!hasBody && omittedCloseTags[this._tag]) {
+          StringLazyTree.queueText(tagClose, '/>');
+        } else {
+          if (!hasBody) {
+            StringLazyTree.queueText(tagClose, '>');
+          }
+          StringLazyTree.queueText(tagClose, '</' + this._currentElement.type + '>');
+        }
+        return tagClose;
+      });
+      mountImage = result;
     }
 
     switch (this._tag) {
@@ -682,13 +719,13 @@ ReactDOMComponent.Mixin = {
    * @return {string} Content markup.
    */
   _createContentMarkup: function(transaction, props, context) {
-    var ret = '';
+    var tree = StringLazyTree();
 
     // Intentional use of != to avoid catching zero/false.
     var innerHTML = props.dangerouslySetInnerHTML;
     if (innerHTML != null) {
       if (innerHTML.__html != null) {
-        ret = innerHTML.__html;
+        StringLazyTree.queueText(tree, innerHTML.__html);
       }
     } else {
       var contentToUse =
@@ -696,31 +733,20 @@ ReactDOMComponent.Mixin = {
       var childrenToUse = contentToUse != null ? null : props.children;
       if (contentToUse != null) {
         // TODO: Validate that text is allowed as a child of this node
-        ret = escapeTextContentForBrowser(contentToUse);
+        StringLazyTree.queueText(tree, escapeTextContentForBrowser(contentToUse));
       } else if (childrenToUse != null) {
         var mountImages = this.mountChildren(
           childrenToUse,
           transaction,
           context
         );
-        ret = mountImages.join('');
+
+        for (var i = 0; i < mountImages.length; i++) {
+          StringLazyTree.queueSubTree(tree, mountImages[i]);
+        }
       }
     }
-    if (newlineEatingTags[this._tag] && ret.charAt(0) === '\n') {
-      // text/html ignores the first character in these tags if it's a newline
-      // Prefer to break application/xml over text/html (for now) by adding
-      // a newline specifically to get eaten by the parser. (Alternately for
-      // textareas, replacing "^\n" with "\r\n" doesn't get eaten, and the first
-      // \r is normalized out by HTMLTextAreaElement#value.)
-      // See: <http://www.w3.org/TR/html-polyglot/#newlines-in-textarea-and-pre>
-      // See: <http://www.w3.org/TR/html5/syntax.html#element-restrictions>
-      // See: <http://www.w3.org/TR/html5/syntax.html#newlines>
-      // See: Parsing of "textarea" "listing" and "pre" elements
-      //  from <http://www.w3.org/TR/html5/syntax.html#parsing-main-inbody>
-      return '\n' + ret;
-    } else {
-      return ret;
-    }
+    return tree;
   },
 
   _createInitialChildren: function(transaction, props, context, lazyTree) {
