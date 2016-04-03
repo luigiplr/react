@@ -23,6 +23,7 @@ var StringLazyTree = require('StringLazyTree');
 var emptyObject = require('emptyObject');
 var instantiateReactComponent = require('instantiateReactComponent');
 var invariant = require('invariant');
+var stream = require('stream');
 
 /**
  * @param {ReactElement} element
@@ -57,6 +58,56 @@ function renderToStringImpl(element, makeStaticMarkup) {
   }
 }
 
+class RenderStream extends stream.Readable {
+  constructor(lazyTree, options) {
+    super(options);
+    this.lazyTree = lazyTree;
+  }
+
+  _read(n) {
+    ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
+    this.push(StringLazyTree.run(this.lazyTree, n));
+    // Revert to the DOM batching strategy since these two renderers
+    // currently share these stateful modules.
+    ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+  }
+}
+
+/**
+ * @param {ReactElement} element
+ * @return {string} the HTML markup
+ */
+function renderToStreamImpl(element, makeStaticMarkup) {
+  var transaction;
+  var resultStream;
+  try {
+    ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
+    transaction = ReactServerRenderingTransaction.getPooled(makeStaticMarkup);
+
+    resultStream = transaction.perform(function() {
+      var componentInstance = instantiateReactComponent(element);
+      var markup = componentInstance.mountComponent(
+        transaction,
+        null,
+        ReactDOMContainerInfo(),
+        emptyObject
+      );
+      ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+      return new RenderStream(markup);
+      // if (!makeStaticMarkup) {
+      //   markup = ReactMarkupChecksum.addChecksumToMarkup(markup);
+      // }
+    }, null);
+  } catch (e) {
+    ReactServerRenderingTransaction.release(transaction);
+    throw e;
+  }
+  resultStream.on('end', () => {
+    ReactServerRenderingTransaction.release(transaction);
+  });
+  return resultStream;
+}
+
 function renderToString(element) {
   invariant(
     ReactElement.isValidElement(element),
@@ -73,7 +124,25 @@ function renderToStaticMarkup(element) {
   return renderToStringImpl(element, true);
 }
 
+function renderToStream(element) {
+  invariant(
+    ReactElement.isValidElement(element),
+    'renderToStream(): You must pass a valid ReactElement.'
+  );
+  return renderToStreamImpl(element, false);
+}
+
+function renderToStaticMarkupStream(element) {
+  invariant(
+    ReactElement.isValidElement(element),
+    'renderToStaticMarkupStream(): You must pass a valid ReactElement.'
+  );
+  return renderToStreamImpl(element, true);
+}
+
 module.exports = {
   renderToString: renderToString,
   renderToStaticMarkup: renderToStaticMarkup,
+  renderToStream: renderToStream,
+  renderToStaticMarkupStream: renderToStaticMarkupStream,
 };

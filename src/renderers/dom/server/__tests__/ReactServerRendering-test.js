@@ -22,6 +22,38 @@ var ReactServerRendering;
 var ID_ATTRIBUTE_NAME;
 var ROOT_ATTRIBUTE_NAME;
 
+function withStringAndStreamIt(desc, testFn) {
+  it(desc + ' with string rendering', testFn.bind(null, function(component, callback) {
+    callback(ReactServerRendering.renderToString(component));
+  }));
+  it(desc + ' with stream rendering', testFn.bind(null, function(component, callback) {
+    var result = '';
+    ReactServerRendering.renderToStream(component)
+      .on('data', function(data) {
+        result += data;
+      })
+      .on('end', function() {
+        callback(result);
+      });
+  }));
+}
+
+function withStaticStringAndStreamIt(desc, testFn) {
+  it(desc + ' with static string rendering', testFn.bind(null, function(component, callback) {
+    callback(ReactServerRendering.renderToStaticMarkup(component));
+  }));
+  it(desc + ' with static stream rendering', testFn.bind(null, function(component, callback) {
+    var result = '';
+    ReactServerRendering.renderToStaticMarkupStream(component)
+      .on('data', function(data) {
+        result += data;
+      })
+      .on('end', function() {
+        callback(result);
+      });
+  }));
+}
+
 describe('ReactServerRendering', function() {
   beforeEach(function() {
     jest.resetModuleRegistry();
@@ -41,60 +73,86 @@ describe('ReactServerRendering', function() {
   });
 
   describe('renderToString', function() {
-    it('should generate simple markup', function() {
-      var response = ReactServerRendering.renderToString(
-        <span>hello world</span>
+    withStringAndStreamIt('should generate simple markup', function(render) {
+      var done = false;
+      render(
+        <span>hello world</span>,
+        (response) => {
+          expect(response).toMatch(
+            '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
+              ID_ATTRIBUTE_NAME + '="[^"]+"( ' +
+              ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+")?>hello world</span>'
+          );
+          done = true;
+        }
       );
-      expect(response).toMatch(
-        '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ID_ATTRIBUTE_NAME + '="[^"]+" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">hello world</span>'
-      );
+      waitsFor(() => done);
     });
 
-    it('should generate simple markup for self-closing tags', function() {
-      var response = ReactServerRendering.renderToString(
-        <img />
+    withStringAndStreamIt('should generate simple markup for self-closing tags', function(render) {
+      var done = false;
+      render(
+        <img />,
+        (response) => {
+          expect(response).toMatch(
+            '<img ' + ROOT_ATTRIBUTE_NAME + '="" ' +
+              ID_ATTRIBUTE_NAME + '="[^"]+"( ' +
+              ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+")?/>'
+          );
+          done = true;
+        }
       );
-      expect(response).toMatch(
-        '<img ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ID_ATTRIBUTE_NAME + '="[^"]+" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+"/>'
-      );
+      waitsFor(() => done);
     });
 
-    it('should generate simple markup for attribute with `>` symbol', function() {
-      var response = ReactServerRendering.renderToString(
-        <img data-attr=">" />
+    withStringAndStreamIt('should generate simple markup for attribute with `>` symbol', function(render) {
+      var done = false;
+      render(
+        <img data-attr=">" />,
+        (response) => {
+          expect(response).toMatch(
+            '<img data-attr="&gt;" ' + ROOT_ATTRIBUTE_NAME + '="" ' +
+              ID_ATTRIBUTE_NAME + '="[^"]+"( ' +
+              ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+")?/>'
+          );
+          done = true;
+        }
       );
-      expect(response).toMatch(
-        '<img data-attr="&gt;" ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ID_ATTRIBUTE_NAME + '="[^"]+" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+"/>'
-      );
+      waitsFor(() => done);
     });
 
-    it('should generate comment markup for component returns null', function() {
+    withStringAndStreamIt('should generate comment markup for component returns null', function(render) {
       var NullComponent = React.createClass({
         render: function() {
           return null;
         },
       });
-      var response = ReactServerRendering.renderToString(<NullComponent />);
-      expect(response).toBe('<!-- react-empty: 1 -->');
+      var done = false;
+      render(<NullComponent />,
+        (response) => {
+          expect(response).toBe('<!-- react-empty: 1 -->');
+          done = true;
+        }
+      );
+      waitsFor(() => done);
     });
 
-    it('should not register event listeners', function() {
+    withStringAndStreamIt('should not register event listeners', function(render) {
       var EventPluginHub = require('EventPluginHub');
       var cb = jest.genMockFn();
 
-      ReactServerRendering.renderToString(
-        <span onClick={cb}>hello world</span>
+      var done = false;
+      render(
+        <span onClick={cb}>hello world</span>,
+        (response) => {
+          expect(EventPluginHub.__getListenerBank()).toEqual({});
+          done = true;
+        }
       );
-      expect(EventPluginHub.__getListenerBank()).toEqual({});
+      waitsFor(() => done);
     });
 
-    it('should render composite components', function() {
+    withStringAndStreamIt('should render composite components', function(render) {
       var Parent = React.createClass({
         render: function() {
           return <div><Child name="child" /></div>;
@@ -105,23 +163,28 @@ describe('ReactServerRendering', function() {
           return <span>My name is {this.props.name}</span>;
         },
       });
-      var response = ReactServerRendering.renderToString(
-        <Parent />
+      var done = false;
+      render(
+        <Parent />,
+        (response) => {
+          expect(response).toMatch(
+            '<div ' + ROOT_ATTRIBUTE_NAME + '="" ' +
+              ID_ATTRIBUTE_NAME + '="[^"]+"( ' +
+              ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+")?>' +
+              '<span ' + ID_ATTRIBUTE_NAME + '="[^"]+">' +
+                '<!-- react-text: [0-9]+ -->My name is <!-- /react-text -->' +
+                '<!-- react-text: [0-9]+ -->child<!-- /react-text -->' +
+              '</span>' +
+            '</div>'
+          );
+          done = true;
+        }
       );
-      expect(response).toMatch(
-        '<div ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ID_ATTRIBUTE_NAME + '="[^"]+" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">' +
-          '<span ' + ID_ATTRIBUTE_NAME + '="[^"]+">' +
-            '<!-- react-text: [0-9]+ -->My name is <!-- /react-text -->' +
-            '<!-- react-text: [0-9]+ -->child<!-- /react-text -->' +
-          '</span>' +
-        '</div>'
-      );
+      waitsFor(() => done);
     });
 
-    it('should only execute certain lifecycle methods', function() {
-      function runTest() {
+    withStringAndStreamIt('should only execute certain lifecycle methods', function(render) {
+      function runTest(cb) {
         var lifecycle = [];
         var TestComponent = React.createClass({
           componentWillMount: function() {
@@ -155,28 +218,35 @@ describe('ReactServerRendering', function() {
           },
         });
 
-        var response = ReactServerRendering.renderToString(
-          <TestComponent />
+        render(
+          <TestComponent />,
+          (response) => {
+            expect(response).toMatch(
+              '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
+                ID_ATTRIBUTE_NAME + '="[^"]+"( ' +
+                ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+")?>' +
+                '<!-- react-text: [0-9]+ -->Component name: <!-- /react-text -->' +
+                '<!-- react-text: [0-9]+ -->TestComponent<!-- /react-text -->' +
+              '</span>'
+            );
+            expect(lifecycle).toEqual(
+              ['getInitialState', 'componentWillMount', 'render']
+            );
+            cb();
+          }
         );
 
-        expect(response).toMatch(
-          '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-            ID_ATTRIBUTE_NAME + '="[^"]+" ' +
-            ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">' +
-            '<!-- react-text: [0-9]+ -->Component name: <!-- /react-text -->' +
-            '<!-- react-text: [0-9]+ -->TestComponent<!-- /react-text -->' +
-          '</span>'
-        );
-        expect(lifecycle).toEqual(
-          ['getInitialState', 'componentWillMount', 'render']
-        );
       }
 
-      runTest();
-
-      // This should work the same regardless of whether you can use DOM or not.
-      ExecutionEnvironment.canUseDOM = true;
-      runTest();
+      var done = false;
+      runTest(() => {
+        // This should work the same regardless of whether you can use DOM or not.
+        ExecutionEnvironment.canUseDOM = true;
+        runTest(() => {
+          done = true;
+        });
+      });
+      waitsFor(() => done);
     });
 
     it('should have the correct mounting behavior', function() {
@@ -254,7 +324,7 @@ describe('ReactServerRendering', function() {
       expect(numClicks).toEqual(1);
     });
 
-    it('should throw with silly args', function() {
+    it('should throw with silly args with string rendering', function() {
       expect(
         ReactServerRendering.renderToString.bind(
           ReactServerRendering,
@@ -264,10 +334,21 @@ describe('ReactServerRendering', function() {
         'renderToString(): You must pass a valid ReactElement.'
       );
     });
+
+    it('should throw with silly args with stream rendering', function() {
+      expect(
+        ReactServerRendering.renderToStream.bind(
+          ReactServerRendering,
+          'not a component'
+        )
+      ).toThrow(
+        'renderToStream(): You must pass a valid ReactElement.'
+      );
+    });
   });
 
   describe('renderToStaticMarkup', function() {
-    it('should not put checksum and React ID on components', function() {
+    withStaticStringAndStreamIt('should not put checksum and React ID on components', function(render) {
       var NestedComponent = React.createClass({
         render: function() {
           return <div>inner text</div>;
@@ -280,39 +361,52 @@ describe('ReactServerRendering', function() {
         },
       });
 
-      var response = ReactServerRendering.renderToStaticMarkup(
-        <TestComponent />
+      var done = false;
+      render(
+        <TestComponent />,
+        (response) => {
+          expect(response).toBe('<span><div>inner text</div></span>');
+          done = true;
+        }
       );
-
-      expect(response).toBe('<span><div>inner text</div></span>');
+      waitsFor(() => done);
     });
 
-    it('should not put checksum and React ID on text components', function() {
+    withStaticStringAndStreamIt('should not put checksum and React ID on text components', function(render) {
       var TestComponent = React.createClass({
         render: function() {
           return <span>{'hello'} {'world'}</span>;
         },
       });
 
-      var response = ReactServerRendering.renderToStaticMarkup(
-        <TestComponent />
+      var done = false;
+      render(
+        <TestComponent />,
+        (response) => {
+          expect(response).toBe('<span>hello world</span>');
+          done = true;
+        }
       );
-
-      expect(response).toBe('<span>hello world</span>');
+      waitsFor(() => done);
     });
 
-    it('should not register event listeners', function() {
+    withStaticStringAndStreamIt('should not register event listeners', function(render) {
       var EventPluginHub = require('EventPluginHub');
       var cb = jest.genMockFn();
 
-      ReactServerRendering.renderToString(
-        <span onClick={cb}>hello world</span>
+      var done = false;
+      render(
+        <span onClick={cb}>hello world</span>,
+        () => {
+          expect(EventPluginHub.__getListenerBank()).toEqual({});
+          done = true;
+        }
       );
-      expect(EventPluginHub.__getListenerBank()).toEqual({});
+      waitsFor(() => done);
     });
 
-    it('should only execute certain lifecycle methods', function() {
-      function runTest() {
+    withStaticStringAndStreamIt('should only execute certain lifecycle methods', function(render) {
+      function runTest(cb) {
         var lifecycle = [];
         var TestComponent = React.createClass({
           componentWillMount: function() {
@@ -346,21 +440,27 @@ describe('ReactServerRendering', function() {
           },
         });
 
-        var response = ReactServerRendering.renderToStaticMarkup(
-          <TestComponent />
-        );
-
-        expect(response).toBe('<span>Component name: TestComponent</span>');
-        expect(lifecycle).toEqual(
-          ['getInitialState', 'componentWillMount', 'render']
+        render(
+          <TestComponent />,
+          (response) => {
+            expect(response).toBe('<span>Component name: TestComponent</span>');
+            expect(lifecycle).toEqual(
+              ['getInitialState', 'componentWillMount', 'render']
+            );
+            cb();
+          }
         );
       }
 
-      runTest();
-
-      // This should work the same regardless of whether you can use DOM or not.
-      ExecutionEnvironment.canUseDOM = true;
-      runTest();
+      var done = false;
+      runTest(() => {
+        // This should work the same regardless of whether you can use DOM or not.
+        ExecutionEnvironment.canUseDOM = true;
+        runTest(() => {
+          done = true;
+        });
+      });
+      waitsFor(() => done);
     });
 
     it('should throw with silly args', function() {
@@ -374,7 +474,18 @@ describe('ReactServerRendering', function() {
       );
     });
 
-    it('allows setState in componentWillMount without using DOM', function() {
+    it('should throw with silly args', function() {
+      expect(
+        ReactServerRendering.renderToStaticMarkupStream.bind(
+          ReactServerRendering,
+          'not a component'
+        )
+      ).toThrow(
+        'renderToStaticMarkupStream(): You must pass a valid ReactElement.'
+      );
+    });
+
+    withStaticStringAndStreamIt('allows setState in componentWillMount without using DOM', function(render) {
       var Component = React.createClass({
         componentWillMount: function() {
           this.setState({text: 'hello, world'});
@@ -388,10 +499,15 @@ describe('ReactServerRendering', function() {
         // We shouldn't ever be calling this on the server
         throw new Error('Browser reconcile transaction should not be used');
       };
-      var markup = ReactServerRendering.renderToString(
-        <Component />
+      var done = false;
+      render(
+        <Component />,
+        (markup) => {
+          expect(markup.indexOf('hello, world') >= 0).toBe(true);
+          done = true;
+        }
       );
-      expect(markup.indexOf('hello, world') >= 0).toBe(true);
+      waitsFor(() => done);
     });
   });
 });
