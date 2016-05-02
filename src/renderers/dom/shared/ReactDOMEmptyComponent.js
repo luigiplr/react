@@ -38,7 +38,7 @@ Object.assign(ReactDOMEmptyComponent.prototype, {
     this._nativeParent = nativeParent;
     this._nativeContainerInfo = nativeContainerInfo;
 
-    var nodeValue = ' react-empty: ' + this._domID + ' ';
+    var nodeValue = ' react-empty ';
 
     if (nativeNodeToReuse) {
       if (NativeNodes.getType(nativeNodeToReuse) !== NativeNodes.types.EMPTY) {

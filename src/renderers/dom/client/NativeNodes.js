@@ -42,7 +42,7 @@ function getType(nativeNode) {
   if (nativeNode.nodeType === ELEMENT_NODE_TYPE) {
     return types.ELEMENT;
   } else if (nativeNode.nodeType === COMMENT_NODE_TYPE
-    && nativeNode.nodeValue.lastIndexOf(' react-empty: ', 0) === 0) {
+    && nativeNode.nodeValue === ' react-empty ') {
     return types.EMPTY;
   } else if (isTextComponentOpeningNode(nativeNode)
     && nativeNode.nextSibling
@@ -96,12 +96,12 @@ function getLastNode(nativeNode) {
 
 function isTextComponentOpeningNode(node) {
   return (node.nodeType === COMMENT_NODE_TYPE
-    && node.nodeValue.lastIndexOf(' react-text', 0) === 0);
+    && node.nodeValue === ' react-text ');
 }
 
 function isTextComponentClosingNode(node) {
   return (node.nodeType === COMMENT_NODE_TYPE
-    && node.nodeValue.lastIndexOf(' /react-text', 0) === 0);
+    && node.nodeValue === ' /react-text ');
 }
 
 /**
