@@ -727,22 +727,24 @@ ReactDOMComponent.Mixin = {
       }
     }
     for (var name in props) {
-      if (!props.hasOwnProperty(name)) {
+      if (name === 'children'
+        ||name === 'dangerouslySetInnerHTML'
+        || !props.hasOwnProperty(name)) {
         continue;
       }
       var value = props[name];
+      // inputs are automatically given a bunch of attributes like type with the
+      // value undefined, so we ignore those (see ReactDOMInput).
+      if (value === undefined || value === null) {
+        continue;
+      }
+
       if (registrationNameModules.hasOwnProperty(name)) {
         if (value) {
           enqueuePutListener(this, name, value, transaction);
         }
       } else {
-        // inputs are automatically given a bunch of attributes like type with the
-        // value undefined, so we ignore those (see ReactDOMInput).
-        if (value !== undefined
-          && value !== null
-          && !node.hasAttribute(name === 'className' ? 'class' : name)
-          && name !== 'children'
-          && name !== 'dangerouslySetInnerHTML'
+        if (!node.hasAttribute(name === 'className' ? 'class' : name)
           // for boolean props, having a value of false in component props is the same
           // as just not existing in the DOM, so we shouldn't throw in that case.
           && !(value === false && !node.hasAttribute(name))
