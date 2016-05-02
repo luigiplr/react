@@ -39,7 +39,12 @@ var types = {
  *  node to be passed in.
  */
 function getType(nativeNode) {
-  if (isTextComponentOpeningNode(nativeNode)
+  if (nativeNode.nodeType === ELEMENT_NODE_TYPE) {
+    return types.ELEMENT;
+  } else if (nativeNode.nodeType === COMMENT_NODE_TYPE
+    && nativeNode.nodeValue.lastIndexOf(' react-empty: ', 0) === 0) {
+    return types.EMPTY;
+  } else if (isTextComponentOpeningNode(nativeNode)
     && nativeNode.nextSibling
     && nativeNode.nextSibling.nodeType === TEXT_NODE_TYPE
     && nativeNode.nextSibling.nextSibling
@@ -51,13 +56,6 @@ function getType(nativeNode) {
     && isTextComponentClosingNode(nativeNode.nextSibling)) {
 
     return types.TEXT;
-  } else {
-    switch (nativeNode.nodeType) {
-      case ELEMENT_NODE_TYPE:
-        return types.ELEMENT;
-      case COMMENT_NODE_TYPE:
-        return types.EMPTY;
-    }
   }
   return types.UNKNOWN;
 }
