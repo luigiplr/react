@@ -138,7 +138,7 @@ describe('ReactServerRendering', function() {
 
     it('should not register event listeners', function() {
       var EventPluginHub = require('EventPluginHub');
-      var cb = jest.genMockFn();
+      var cb = jest.fn();
 
       ReactServerRendering.renderToString(
         <span onClick={cb}>hello world</span>
@@ -284,9 +284,15 @@ describe('ReactServerRendering', function() {
       ExecutionEnvironment.canUseDOM = true;
       element.innerHTML = lastMarkup;
 
-      ReactDOM.render(<TestComponent name="x" />, element);
+      var instance = ReactDOM.render(<TestComponent name="x" />, element);
       expect(mountCount).toEqual(3);
       expect(element.innerHTML).toBe(lastMarkup);
+
+      // Ensure the events system works after mount into server markup
+      expect(numClicks).toEqual(0);
+      ReactTestUtils.Simulate.click(ReactDOM.findDOMNode(instance.refs.span));
+      expect(numClicks).toEqual(1);
+
       ReactDOM.unmountComponentAtNode(element);
       expect(element.innerHTML).toEqual('');
 
@@ -294,16 +300,16 @@ describe('ReactServerRendering', function() {
       // warn but do the right thing.
       element.innerHTML = lastMarkup;
       spyOn(console, 'error');
-      var instance = ReactDOM.render(<TestComponent name="y" />, element);
+      instance = ReactDOM.render(<TestComponent name="y" />, element);
       expect(mountCount).toEqual(4);
       expect(console.error.argsForCall.length).toBe(1);
       expect(element.innerHTML.length > 0).toBe(true);
       expect(element.innerHTML).not.toEqual(lastMarkup);
 
-      // Ensure the events system works
-      expect(numClicks).toEqual(0);
-      ReactTestUtils.Simulate.click(ReactDOM.findDOMNode(instance.refs.span));
+      // Ensure the events system works after markup mismatch.
       expect(numClicks).toEqual(1);
+      ReactTestUtils.Simulate.click(ReactDOM.findDOMNode(instance.refs.span));
+      expect(numClicks).toEqual(2);
     });
 
     describe('reconnecting to server markup', function() {
@@ -870,7 +876,7 @@ describe('ReactServerRendering', function() {
 
     it('should not register event listeners', function() {
       var EventPluginHub = require('EventPluginHub');
-      var cb = jest.genMockFn();
+      var cb = jest.fn();
 
       ReactServerRendering.renderToString(
         <span onClick={cb}>hello world</span>

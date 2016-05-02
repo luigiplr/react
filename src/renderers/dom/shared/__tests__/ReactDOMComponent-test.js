@@ -15,6 +15,7 @@
 describe('ReactDOMComponent', function() {
   var React;
   var ReactDOM;
+  var ReactDOMFeatureFlags;
   var ReactDOMServer;
   var inputValueTracking;
 
@@ -22,6 +23,7 @@ describe('ReactDOMComponent', function() {
     jest.resetModuleRegistry();
     React = require('React');
     ReactDOM = require('ReactDOM');
+    ReactDOMFeatureFlags = require('ReactDOMFeatureFlags');
     ReactDOMServer = require('ReactDOMServer');
     inputValueTracking = require('inputValueTracking');
   });
@@ -450,11 +452,11 @@ describe('ReactDOMComponent', function() {
 
       var node = container.firstChild;
       var nodeSetAttribute = node.setAttribute;
-      node.setAttribute = jest.genMockFn();
+      node.setAttribute = jest.fn();
       node.setAttribute.mockImpl(nodeSetAttribute);
 
       var nodeRemoveAttribute = node.removeAttribute;
-      node.removeAttribute = jest.genMockFn();
+      node.removeAttribute = jest.fn();
       node.removeAttribute.mockImpl(nodeRemoveAttribute);
 
       ReactDOM.render(<div id="" />, container);
@@ -488,7 +490,7 @@ describe('ReactDOMComponent', function() {
 
       var node = container.firstChild;
       var nodeValue = ''; // node.value always returns undefined
-      var nodeValueSetter = jest.genMockFn();
+      var nodeValueSetter = jest.fn();
       Object.defineProperty(node, 'value', {
         get: function() {
           return nodeValue;
@@ -519,7 +521,7 @@ describe('ReactDOMComponent', function() {
 
       var node = container.firstChild;
       var nodeValue = true;
-      var nodeValueSetter = jest.genMockFn();
+      var nodeValueSetter = jest.fn();
       Object.defineProperty(node, 'checked', {
         get: function() {
           return nodeValue;
@@ -552,7 +554,7 @@ describe('ReactDOMComponent', function() {
       var container = document.createElement('div');
       var node = ReactDOM.render(<div />, container);
 
-      var setter = jest.genMockFn();
+      var setter = jest.fn();
       node.setAttribute = setter;
 
       ReactDOM.render(<div dir={null} />, container);
@@ -839,8 +841,8 @@ describe('ReactDOMComponent', function() {
     it('should execute custom event plugin listening behavior', function() {
       var SimpleEventPlugin = require('SimpleEventPlugin');
 
-      SimpleEventPlugin.didPutListener = jest.genMockFn();
-      SimpleEventPlugin.willDeleteListener = jest.genMockFn();
+      SimpleEventPlugin.didPutListener = jest.fn();
+      SimpleEventPlugin.willDeleteListener = jest.fn();
 
       var container = document.createElement('div');
       ReactDOM.render(
@@ -858,8 +860,8 @@ describe('ReactDOMComponent', function() {
     it('should handle null and missing properly with event hooks', function() {
       var SimpleEventPlugin = require('SimpleEventPlugin');
 
-      SimpleEventPlugin.didPutListener = jest.genMockFn();
-      SimpleEventPlugin.willDeleteListener = jest.genMockFn();
+      SimpleEventPlugin.didPutListener = jest.fn();
+      SimpleEventPlugin.willDeleteListener = jest.fn();
       var container = document.createElement('div');
 
       ReactDOM.render(<div onClick={false} />, container);
@@ -905,6 +907,17 @@ describe('ReactDOMComponent', function() {
         'input is a void element tag and must not have `children` ' +
         'or use `props.dangerouslySetInnerHTML`. Check the render method of X.'
       );
+    });
+
+    it('should support custom elements which extend native elements', function() {
+      if (ReactDOMFeatureFlags.useCreateElement) {
+        var container = document.createElement('div');
+        spyOn(document, 'createElement').andCallThrough();
+        ReactDOM.render(<div is="custom-div" />, container);
+        expect(document.createElement).toHaveBeenCalledWith('div', 'custom-div');
+      } else {
+        expect(ReactDOMServer.renderToString(<div is="custom-div" />)).toContain('is="custom-div"');
+      }
     });
   });
 
@@ -1093,6 +1106,12 @@ describe('ReactDOMComponent', function() {
       expect(console.error.argsForCall[0][0]).toBe(
         'Warning: This browser doesn\'t support the `onScroll` event'
       );
+    });
+
+    it('should not warn when server-side rendering `onScroll`', function() {
+      spyOn(console, 'error');
+      ReactDOMServer.renderToString(<div onScroll={() => {}}/>);
+      expect(console.error).not.toHaveBeenCalled();
     });
   });
 

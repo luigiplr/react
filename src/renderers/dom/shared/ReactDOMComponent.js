@@ -38,6 +38,7 @@ var ReactInstrumentation = require('ReactInstrumentation');
 var ReactMarkupChecksum = require('ReactMarkupChecksum');
 var ReactMultiChild = require('ReactMultiChild');
 var ReactPerf = require('ReactPerf');
+var ReactServerRenderingTransaction = require('ReactServerRenderingTransaction');
 
 var emptyFunction = require('emptyFunction');
 var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
@@ -213,6 +214,9 @@ function assertValidProps(component, props) {
 }
 
 function enqueuePutListener(inst, registrationName, listener, transaction) {
+  if (transaction instanceof ReactServerRenderingTransaction) {
+    return;
+  }
   if (__DEV__) {
     // IE8 has no API for event capturing and the `onScroll` event doesn't
     // bubble.
@@ -224,10 +228,6 @@ function enqueuePutListener(inst, registrationName, listener, transaction) {
   var containerInfo = inst._nativeContainerInfo;
   var isDocumentFragment = containerInfo._node && containerInfo._node.nodeType === DOC_FRAGMENT_TYPE;
   var doc = isDocumentFragment ? containerInfo._node : containerInfo._ownerDocument;
-  if (!doc) {
-    // Server rendering.
-    return;
-  }
   listenTo(registrationName, doc);
   transaction.getReactMountReady().enqueue(putListener, {
     inst: inst,
@@ -624,7 +624,7 @@ ReactDOMComponent.Mixin = {
           div.innerHTML = `<${type}></${type}>`;
           el = div.removeChild(div.firstChild);
         } else {
-          el = ownerDocument.createElement(this._currentElement.type);
+          el = ownerDocument.createElement(this._currentElement.type, props.is || null);
         }
       } else {
         el = ownerDocument.createElementNS(
@@ -1278,9 +1278,11 @@ ReactDOMComponent.Mixin = {
     this._domID = null;
     this._wrapperState = null;
 
-    if (this._contentDebugID) {
-      ReactInstrumentation.debugTool.onUnmountComponent(this._contentDebugID);
-      this._contentDebugID = null;
+    if (__DEV__) {
+      if (this._contentDebugID) {
+        ReactInstrumentation.debugTool.onUnmountComponent(this._contentDebugID);
+        this._contentDebugID = null;
+      }
     }
   },
 

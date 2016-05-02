@@ -382,6 +382,10 @@ var ReactMount = {
     shouldReuseMarkup,
     context
   ) {
+    if (__DEV__) {
+      ReactInstrumentation.debugTool.onBeginFlush();
+    }
+
     // Various parts of our code (such as ReactCompositeComponent's
     // _renderValidatedComponent) assume that calls to render aren't nested;
     // verify that that's the case.
@@ -433,6 +437,7 @@ var ReactMount = {
       ReactInstrumentation.debugTool.onMountRootComponent(
         componentInstance._renderedComponent._debugID
       );
+      ReactInstrumentation.debugTool.onEndFlush();
     }
 
     return componentInstance;
@@ -580,6 +585,7 @@ var ReactMount = {
 
   /**
    * Renders a React component into the DOM in the supplied `container`.
+   * See https://facebook.github.io/react/docs/top-level-api.html#reactdom.render
    *
    * If the React component was previously rendered into `container`, this will
    * perform an update on it and only mutate the DOM as necessary to reflect the
@@ -596,6 +602,7 @@ var ReactMount = {
 
   /**
    * Unmounts and destroys the React component rendered in the `container`.
+   * See https://facebook.github.io/react/docs/top-level-api.html#reactdom.unmountcomponentatnode
    *
    * @param {DOMElement} container DOM element containing a React component.
    * @return {boolean} True if a component was found in and unmounted from
@@ -700,6 +707,14 @@ var ReactMount = {
     } else {
       setInnerHTML(container, markup);
       ReactDOMComponentTree.precacheNode(instance, container.firstChild);
+    }
+
+    if (__DEV__) {
+      ReactInstrumentation.debugTool.onNativeOperation(
+        ReactDOMComponentTree.getInstanceFromNode(container.firstChild)._debugID,
+        'mount',
+        markup.toString()
+      );
     }
   },
 };
