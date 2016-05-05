@@ -13,6 +13,7 @@
 var ReactElement = require('ReactElement');
 var ReactServerRenderingAsync = require('ReactServerRenderingAsync');
 var invariant = require('invariant');
+var stream = require('stream');
 
 /**
  * @param {ReactElement} element
@@ -57,7 +58,40 @@ function renderToStaticMarkup(element) {
   return renderToStringImpl(element, true);
 }
 
+class RenderElementStream extends stream.Readable {
+  constructor(element, makeStaticMarkup = false) {
+    super();
+    this.element = element;
+    this.makeStaticMarkup = makeStaticMarkup;
+  }
+
+  _read(n) {
+    if (this.element) {
+      this.chunk = ReactServerRenderingAsync.render(this.element, n, this.makeStaticMarkup);
+      this.element = null;
+    } else {
+      this.chunk = this.chunk.next(n);
+    }
+
+    if (this.chunk === null) {
+      this.push(null);
+    } else {
+      this.push(this.chunk.text);
+    }
+  }
+}
+
+function renderToStream(element) {
+  return new RenderElementStream(element, false);
+}
+
+function renderToStaticMarkupStream(element) {
+  return new RenderElementStream(element, true);
+}
+
 module.exports = {
   renderToString: renderToString,
   renderToStaticMarkup: renderToStaticMarkup,
+  renderToStream: renderToStream,
+  renderToStaticMarkupStream: renderToStaticMarkupStream,
 };
