@@ -10,19 +10,8 @@
  */
 'use strict';
 
-var ReactDOMContainerInfo = require('ReactDOMContainerInfo');
-var ReactDefaultBatchingStrategy = require('ReactDefaultBatchingStrategy');
 var ReactElement = require('ReactElement');
-var ReactInstrumentation = require('ReactInstrumentation');
-var ReactMarkupChecksum = require('ReactMarkupChecksum');
-var ReactReconciler = require('ReactReconciler');
-var ReactServerBatchingStrategy = require('ReactServerBatchingStrategy');
-var ReactServerRenderingTransaction =
-  require('ReactServerRenderingTransaction');
-var ReactUpdates = require('ReactUpdates');
-
-var emptyObject = require('emptyObject');
-var instantiateReactComponent = require('instantiateReactComponent');
+var ReactServerRenderingAsync = require('ReactServerRenderingAsync');
 var invariant = require('invariant');
 
 /**
@@ -30,37 +19,16 @@ var invariant = require('invariant');
  * @return {string} the HTML markup
  */
 function renderToStringImpl(element, makeStaticMarkup) {
-  var transaction;
-  try {
-    ReactUpdates.injection.injectBatchingStrategy(ReactServerBatchingStrategy);
+  var chunkLength = Infinity;
+  var chunk = ReactServerRenderingAsync.render(element, chunkLength, makeStaticMarkup);
+  var result = '';
 
-    transaction = ReactServerRenderingTransaction.getPooled(makeStaticMarkup);
-
-    return transaction.perform(function() {
-      var componentInstance = instantiateReactComponent(element);
-      var markup = ReactReconciler.mountComponent(
-        componentInstance,
-        transaction,
-        null,
-        ReactDOMContainerInfo(),
-        emptyObject
-      );
-      if (__DEV__) {
-        ReactInstrumentation.debugTool.onUnmountComponent(
-          componentInstance._debugID
-        );
-      }
-      if (!makeStaticMarkup) {
-        markup = ReactMarkupChecksum.addChecksumToMarkup(markup);
-      }
-      return markup;
-    }, null);
-  } finally {
-    ReactServerRenderingTransaction.release(transaction);
-    // Revert to the DOM batching strategy since these two renderers
-    // currently share these stateful modules.
-    ReactUpdates.injection.injectBatchingStrategy(ReactDefaultBatchingStrategy);
+  while (chunk !== null) {
+    result += chunk.text;
+    chunk = chunk.next(chunkLength);
   }
+
+  return result;
 }
 
 /**

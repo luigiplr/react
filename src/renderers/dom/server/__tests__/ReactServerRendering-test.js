@@ -65,12 +65,22 @@ function connectToServerRendering(
     shouldMatch);
 }
 
-function expectMarkupMismatch(elementToRenderOnServer, elementToRenderOnClient) {
-  return connectToServerRendering(elementToRenderOnServer, elementToRenderOnClient, false);
+function expectMarkupMismatch(serverRendering, elementToRenderOnClient) {
+  if (typeof serverRendering === 'string') {
+    var domElement = document.createElement('div');
+    domElement.innerHTML = serverRendering;
+    return renderOnClient(elementToRenderOnClient, domElement, false);
+  }
+  return connectToServerRendering(serverRendering, elementToRenderOnClient, false);
 }
 
-function expectMarkupMatch(elementToRenderOnServer, elementToRenderOnClient = elementToRenderOnServer) {
-  return connectToServerRendering(elementToRenderOnServer, elementToRenderOnClient, true);
+function expectMarkupMatch(serverRendering, elementToRenderOnClient = serverRendering) {
+  if (typeof serverRendering === 'string') {
+    var domElement = document.createElement('div');
+    domElement.innerHTML = serverRendering;
+    return renderOnClient(elementToRenderOnClient, domElement, true);
+  }
+  return connectToServerRendering(serverRendering, elementToRenderOnClient, true);
 }
 
 describe('ReactServerRendering', function() {
@@ -96,8 +106,7 @@ describe('ReactServerRendering', function() {
         <span>hello world</span>
       );
       expect(response).toMatch(
-        '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">hello world</span>'
+        '<span ' + ROOT_ATTRIBUTE_NAME + '="">hello world</span>'
       );
     });
 
@@ -106,8 +115,7 @@ describe('ReactServerRendering', function() {
         <img />
       );
       expect(response).toMatch(
-        '<img ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+"/>'
+        '<img ' + ROOT_ATTRIBUTE_NAME + '=""/>'
       );
     });
 
@@ -116,8 +124,7 @@ describe('ReactServerRendering', function() {
         <img data-attr=">" />
       );
       expect(response).toMatch(
-        '<img data-attr="&gt;" ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+"/>'
+        '<img ' + ROOT_ATTRIBUTE_NAME + '="" data-attr="&gt;"/>'
       );
     });
 
@@ -156,8 +163,7 @@ describe('ReactServerRendering', function() {
         <Parent />
       );
       expect(response).toMatch(
-        '<div ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-          ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">' +
+        '<div ' + ROOT_ATTRIBUTE_NAME + '="">' +
           '<span>' +
             '<!-- react-text -->My name is <!-- /react-text -->' +
             '<!-- react-text -->child<!-- /react-text -->' +
@@ -206,8 +212,7 @@ describe('ReactServerRendering', function() {
         );
 
         expect(response).toMatch(
-          '<span ' + ROOT_ATTRIBUTE_NAME + '="" ' +
-            ReactMarkupChecksum.CHECKSUM_ATTR_NAME + '="[^"]+">' +
+          '<span ' + ROOT_ATTRIBUTE_NAME + '="">' +
             '<!-- react-text -->Component name: <!-- /react-text -->' +
             '<!-- react-text -->TestComponent<!-- /react-text -->' +
           '</span>'
@@ -404,6 +409,8 @@ describe('ReactServerRendering', function() {
         expectMarkupMatch(<div>{2}</div>, <div>2</div>));
       it('should reconnect a div with text with special characters',
         () => expectMarkupMatch(<div>{"Text & > < Stuff"}</div>));
+      it('should reconnect a div with text with special characters in multiple children',
+        () => expectMarkupMatch(<div>{"&<>\"'"}{"Text & > <\"' Stuff"}</div>));
       it('should reconnect a div with text with flanking whitespace',
         () => expectMarkupMatch(<div>  Text </div>));
 
@@ -472,6 +479,8 @@ describe('ReactServerRendering', function() {
 
       // Markup Matches: namespaces
       it('should reconnect an svg element', () => expectMarkupMatch(<svg/>));
+      xit('should reconnect an svg element with an xlink',
+        () => expectMarkupMatch(<svg><image xlinkHref="http://i.imgur.com/w7GCRPb.png"/></svg>));
       it('should reconnect a math element', () => expectMarkupMatch(<math/>));
 
       // Markup Matches: misc
