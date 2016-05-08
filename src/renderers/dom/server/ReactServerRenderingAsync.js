@@ -21,13 +21,23 @@ tree node looks like:
 
 'use strict';
 
+var BeforeInputEventPlugin = require('BeforeInputEventPlugin');
+var ChangeEventPlugin = require('ChangeEventPlugin');
 var CSSPropertyOperations = require('CSSPropertyOperations');
+var DOMPropertyOperations = require('DOMPropertyOperations');
+var EnterLeaveEventPlugin = require('EnterLeaveEventPlugin');
+var EventPluginRegistry = require('EventPluginRegistry');
 var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
+var ReactInjection = require('ReactInjection');
+var SelectEventPlugin = require('SelectEventPlugin');
+var SimpleEventPlugin = require('SimpleEventPlugin');
+
+var registrationNameModules = EventPluginRegistry.registrationNameModules;
 
 // copied from ReactDOMComponent.js
 // For HTML, certain tags should omit their close tag. We keep a whitelist for
 // those special-case tags.
-const selfClosingTags = {
+const voidTags = {
   'area': true,
   'base': true,
   'br': true,
@@ -52,6 +62,17 @@ var newlineEatingTags = {
   'pre': true,
   'textarea': true,
 };
+
+// in order to get good checking of event names, we need to inject event plugins
+// this was copied from ReactDefaultInjection.js
+ReactInjection.EventPluginHub.injectEventPluginsByName({
+  SimpleEventPlugin: SimpleEventPlugin,
+  EnterLeaveEventPlugin: EnterLeaveEventPlugin,
+  ChangeEventPlugin: ChangeEventPlugin,
+  SelectEventPlugin: SelectEventPlugin,
+  BeforeInputEventPlugin: BeforeInputEventPlugin,
+});
+
 
 // TODO: make this real like a generator
 const renderResultToGenerator = (result, tree, makeStaticMarkup) => {
@@ -81,6 +102,11 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
   // is a dom node.
   const element = tree.element = getNativeComponent(tree.element);
 
+  // when there's a false child, it's rendered as an empty string.
+  if (element === false) {
+    return {done:true, text:''};
+  }
+
   // an empty (null) element translates to a comment node.
   if (element === null) {
     return {done: true, text: makeStaticMarkup ? '' : '<!-- react-empty -->'};
@@ -91,9 +117,13 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
   }
 
   // now, we should have a dom element (element.type is a string)
-  const {props, type: tag} = element;
+  const {props, type: rawTag} = element;
+  if (typeof rawTag !== 'string') {
+    throw new Error(`A ReactElement had a type of '${rawTag}', when it should have been a tag name.`);
+  }
+  const tag = rawTag.toLowerCase();
   const attributes = (tree.root ? ' data-reactroot=""' : '') + propsToAttributes(props, tag, selectValues);
-  if (selfClosingTags[tag]
+  if (voidTags[tag]
     && (props.children === '' || props.children === null || props.children === undefined)) {
 
     return {done: true, text: '<' + tag + attributes + '/>'};
@@ -148,14 +178,7 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
 
     const elementChildren = props.children.length ? props.children : [props.children];
     tree.children = [];
-    for (var i = 0; i < elementChildren.length; i++) {
-      const child = elementChildren[i];
-      if (typeof child === 'object' && child !== null) {
-        tree.children.push({element: child});
-      } else {
-        tree.children.push(child);
-      }
-    }
+    addChildrenToArray(elementChildren, tree.children);
   }
 
   for (tree.childIndex = tree.childIndex || 0; tree.childIndex < tree.children.length; tree.childIndex++) {
@@ -164,11 +187,6 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
     }
 
     const child = tree.children[tree.childIndex];
-
-    // null children do NOT result in an empty node; they just aren't rendered.
-    if (child === null) {
-      continue;
-    }
 
     if (typeof child === 'string' || typeof child === 'number') {
       text += tree.filter(makeStaticMarkup ?
@@ -205,40 +223,57 @@ const getSelectValues = (tag, props) => {
   return result;
 };
 
+const addChildrenToArray = (children, resultArray) => {
+  for (var i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (Array.isArray(child)) {
+      addChildrenToArray(child, resultArray);
+    } else if (child === null || child === false) {
+      // null children do NOT result in an empty node; they just aren't rendered.
+      continue;
+    } else if (typeof child === 'object') {
+      resultArray.push({element: child});
+    } else {
+      resultArray.push(child);
+    }
+  }
+};
+
 const getNativeComponent = (element) => {
   while (element && typeof element.type !== 'string' && typeof element.type !== 'number' && typeof element.type !== 'undefined') {
     // TODO: what to do about context?
     const context = {};
+    let component = null;
+
+    // instantiate the component.
     if (shouldConstruct(element.type)) {
-      const component = new element.type(element.props, context, updater);
-      if (component.componentWillMount) {
-        component.componentWillMount();
+      component = new element.type(element.props, context, updater);
+      if (!component.render) {
+        // TODO: get the component display name for the error.
+        throw new Error('The component has no render method.');
       }
-      updater.drainQueue();
-      element = component.render();
     } else if (typeof element.type === 'function') {
-      // just call as function for stateless components.
-      element = element.type(element.props, context);
+      // just call as function for stateless components or factory components.
+      component = element.type(element.props, context);
+    }
+
+    // if it has a componentWillMount method, we need to fire it now.
+    if (component && component.componentWillMount) {
+      component.componentWillMount();
+    }
+    // if setState or replaceState was called in componentWillMount, we need to
+    // fire those calls now.
+    updater.drainQueue();
+
+    // finally, render the component.
+    if (component && component.render) {
+      element = component.render();
+    } else {
+      // stateless components just return an element, not a component with a render method.
+      element = component;
     }
   }
   return element;
-};
-
-const propNameMap = {
-  className: 'class',
-  defaultValue: 'value',
-  defaultChecked: 'checked',
-  htmlFor: 'for',
-  xlinkActuate: 'xlink:actuate',
-  xlinkArcrole: 'xlink:arcrole',
-  xlinkHref: 'xlink:href',
-  xlinkRole: 'xlink:role',
-  xlinkShow: 'xlink:show',
-  xlinkTitle: 'xlink:title',
-  xlinkType: 'xlink:type',
-  xmlBase: 'xml:base',
-  xmlLang: 'xml:lang',
-  xmlSpace: 'xml:space',
 };
 
 const propsToAttributes = (props, tagName, selectValues) => {
@@ -261,30 +296,31 @@ const propsToAttributes = (props, tagName, selectValues) => {
     if (name === 'children'
       || name === 'dangerouslySetInnerHTML'
       || name === 'ref'
-      // TODO: should this use the event registration object?
-      || name.substring(0, 2) === 'on'
       || (tagName === 'textarea' && (name === 'value' || name === 'defaultValue'))
       || (tagName === 'select' && (name === 'value' || name === 'defaultValue'))
-      || !props.hasOwnProperty(name)) {
+      || !props.hasOwnProperty(name)
+      || registrationNameModules.hasOwnProperty(name)) {
       continue;
     }
 
     let value = props[name];
-    if (value === false) {
-      continue;
-    }
+
     if (name === 'style') {
       value = CSSPropertyOperations.createMarkupForStyles(value);
       if (value === null) {
         continue;
       }
     }
+    if (name === 'defaultValue') {
+      name = 'value';
+    }
+    if (name === 'defaultChecked') {
+      name = 'checked';
+    }
 
-    name = propNameMap[name] || name;
-    if (value === true) {
-      result += ' ' + name;
-    } else {
-      result += ' ' + name + '="' + escapeTextContentForBrowser(value) + '"';
+    var markup = DOMPropertyOperations.createMarkupForProperty(name, value);
+    if (markup) {
+      result += ' ' + markup;
     }
   }
   return result;

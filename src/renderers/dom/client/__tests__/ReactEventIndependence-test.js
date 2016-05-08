@@ -13,6 +13,7 @@
 
 var React;
 var ReactDOM;
+var ReactServerRendering;
 var ReactTestUtils;
 
 describe('ReactEventIndependence', function() {
@@ -21,17 +22,18 @@ describe('ReactEventIndependence', function() {
 
     React = require('React');
     ReactDOM = require('ReactDOM');
+    ReactServerRendering = require('ReactServerRendering');
     ReactTestUtils = require('ReactTestUtils');
   });
 
   it('does not crash with other react inside', function() {
-    throw new Error('Need to rewrite this test');
+    // throw new Error('Need to rewrite this test');
     var clicks = 0;
     var div = ReactTestUtils.renderIntoDocument(
       <div
         onClick={() => clicks++}
         dangerouslySetInnerHTML={{
-          __html: '<button data-reactid=".z">click me</div>',
+          __html: ReactServerRendering.renderToString(<button>click me</button>),
         }}
       />
     );
@@ -40,13 +42,12 @@ describe('ReactEventIndependence', function() {
   });
 
   it('does not crash with other react outside', function() {
-    throw new Error('Need to rewrite this test');
     var clicks = 0;
-    var outer = document.createElement('div');
-    outer.setAttribute('data-reactid', '.z');
+    var container = document.createElement('div');
+    container.innerHTML = ReactServerRendering.renderToString(<div/>);
     var inner = ReactDOM.render(
       <button onClick={() => clicks++}>click me</button>,
-      outer
+      container.firstChild
     );
     ReactTestUtils.SimulateNative.click(inner);
     expect(clicks).toBe(1);

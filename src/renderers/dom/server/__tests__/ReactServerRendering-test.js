@@ -310,6 +310,48 @@ describe('ReactServerRendering', function() {
       expect(numClicks).toEqual(2);
     });
 
+    it('can render a false child', () => {
+      class Foo extends React.Component {
+        render() {
+          return false;
+        }
+      }
+      expect(ReactServerRendering.renderToString(<Foo />)).toBe('');
+    });
+
+    it('can render a factory component', () => {
+      function Foo() {
+        return {
+          render() {
+            return <div>Foo</div>;
+          },
+        };
+      }
+      expect(ReactServerRendering.renderToString(<div><Foo /></div>))
+        .toBe('<div data-reactroot=""><div>Foo</div></div>');
+    });
+
+    it('can render a null and false children', () => {
+      function Foo() {
+        return <div />;
+      }
+      var element = (
+        <div>
+          {'hi'}
+          {false}
+          {42}
+          {null}
+          <Foo />
+        </div>
+      );
+
+      expect(ReactServerRendering.renderToString(element))
+        .toBe('<div data-reactroot="">' +
+          '<!-- react-text -->hi<!-- /react-text -->' +
+          '<!-- react-text -->42<!-- /react-text -->' +
+          '<div></div></div>');
+    });
+
     describe('reconnecting to server markup', function() {
       var EmptyComponent;
       beforeEach(() => {
