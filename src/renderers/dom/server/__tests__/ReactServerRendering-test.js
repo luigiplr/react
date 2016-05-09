@@ -33,6 +33,11 @@ function renderOnServer(reactElement) {
   return domElement;
 }
 
+// returns a DOM of the react element when server rendered and NOT rendered on client.
+function getSsrDom(reactElement) {
+  return renderOnServer(reactElement).firstChild;
+}
+
 function renderOnClient(reactElement, domElement, shouldMatch = true) {
   // we don't use spyOn(console, 'error') here because we want to be able to call this
   // function multiple times, and spyOn throws an error if you give it a function that is
@@ -327,11 +332,10 @@ describe('ReactServerRendering', function() {
           },
         };
       }
-      expect(ReactServerRendering.renderToString(<div><Foo /></div>))
-        .toBe('<div data-reactroot=""><div>Foo</div></div>');
+      expect(getSsrDom(<Foo />).textContent).toBe('Foo');
     });
 
-    it('can render a null and false children', () => {
+    it('can render null and false children', () => {
       function Foo() {
         return <div />;
       }
@@ -352,7 +356,7 @@ describe('ReactServerRendering', function() {
           '<div></div></div>');
     });
 
-    it('should run getInitialState', function() {
+    it('should get initial state from getInitialState', function() {
       const Component = React.createClass({
         getInitialState: function() {
           return {text: 'foo'};
@@ -361,7 +365,80 @@ describe('ReactServerRendering', function() {
           return <div>{this.state.text}</div>;
         },
       });
-      expect(renderOnServer(<Component/>).textContent).toBe('foo');
+      expect(getSsrDom(<Component/>).textContent).toBe('foo');
+    });
+
+    describe('property to attribute mapping', function() {
+      it('renders simple numbers', function() {
+        expect(getSsrDom(<div width={30}/>).getAttribute('width')).toBe('30');
+      });
+
+      it('renders simple strings', function() {
+        expect(getSsrDom(<div width={"30"}/>).getAttribute('width')).toBe('30');
+      });
+
+      it('renders booleans correctly', function() {
+        expect(getSsrDom(<div hidden={true}/>).getAttribute('hidden')).toBe('');
+        expect(getSsrDom(<div hidden/>).getAttribute('hidden')).toBe(''); // eslint-disable-line react/jsx-boolean-value
+        expect(getSsrDom(<div hidden="hidden"/>).getAttribute('hidden')).toBe('');
+
+        // I think this is not correct behavior, since hidden="" in HTML indicates
+        // that the boolean property is present. however, it is how the current code
+        // behaves, so the test is included here.
+        expect(getSsrDom(<div hidden=""/>).getAttribute('hidden')).toBe(null);
+        // I also disagree with the behavior of the next two tests; I think it's
+        // overly clever and masks what may be a programmer error. Ideally, it would
+        // warn and pass the value through.
+        expect(getSsrDom(<div hidden="foo"/>).getAttribute('hidden')).toBe('');
+        expect(getSsrDom(<div hidden={['foo', 'bar']}/>).getAttribute('hidden')).toBe('');
+        expect(getSsrDom(<div hidden={{foo:'bar'}}/>).getAttribute('hidden')).toBe('');
+
+        expect(getSsrDom(<div hidden={false}/>).getAttribute('hidden')).toBe(null);
+        expect(getSsrDom(<div/>).getAttribute('hidden')).toBe(null);
+      });
+
+      it('renders booleans as strings for string attributes', function() {
+        // I disagree with this behavior; I think it is undesirable and masks a
+        // probable programmer error. I'd prefer that {true} & {false} be rendered as
+        // they are for boolean attributes.
+        expect(getSsrDom(<a href={true}/>).getAttribute('href')).toBe('true');
+        expect(getSsrDom(<a href/>).getAttribute('href')).toBe('true');  // eslint-disable-line react/jsx-boolean-value
+        expect(getSsrDom(<a href={false}/>).getAttribute('href')).toBe('false');
+      });
+
+      it('handles download as a combined boolean/string attribute', function() {
+        expect(getSsrDom(<a download={true}/>).getAttribute('download')).toBe('');
+        /* eslint-disable react/jsx-boolean-value */
+        expect(getSsrDom(<a download/>).getAttribute('download')).toBe('');
+        /* eslint-enable react/jsx-boolean-value */
+        expect(getSsrDom(<a download={false}/>).getAttribute('download')).toBe(null);
+        expect(getSsrDom(<a download="myfile"/>).getAttribute('download')).toBe('myfile');
+        expect(getSsrDom(<a download={'true'}/>).getAttribute('download')).toBe('true');
+      });
+
+      it('renders className and htmlFor correctly', function() {
+        expect(getSsrDom(<div/>).getAttribute('class')).toBe(null);
+        expect(getSsrDom(<div className="myClassName"/>).getAttribute('class')).toBe('myClassName');
+        expect(getSsrDom(<div className=""/>).getAttribute('class')).toBe('');
+        // I disagree with the behavior of the next three tests; I think that a boolean value should
+        // warn, and not transform the value. This is current behavior.
+        expect(getSsrDom(<div className={true}/>).getAttribute('class')).toBe('true');
+        /* eslint-disable react/jsx-boolean-value */
+        expect(getSsrDom(<div className/>).getAttribute('class')).toBe('true');
+        /* eslint-enable react/jsx-boolean-value */
+        expect(getSsrDom(<div className={false}/>).getAttribute('class')).toBe('false');
+
+        expect(getSsrDom(<div/>).getAttribute('for')).toBe(null);
+        expect(getSsrDom(<div htmlFor="myFor"/>).getAttribute('for')).toBe('myFor');
+        expect(getSsrDom(<div htmlFor=""/>).getAttribute('for')).toBe('');
+        // I disagree with the behavior of the next three tests; I think that a boolean value should
+        // warn, and not transform the value. This is current behavior.
+        expect(getSsrDom(<div htmlFor={true}/>).getAttribute('for')).toBe('true');
+        /* eslint-disable react/jsx-boolean-value */
+        expect(getSsrDom(<div htmlFor/>).getAttribute('for')).toBe('true');
+        /* eslint-enable react/jsx-boolean-value */
+        expect(getSsrDom(<div htmlFor={false}/>).getAttribute('for')).toBe('false');
+      });
     });
 
     describe('context', function() {
@@ -422,7 +499,7 @@ describe('ReactServerRendering', function() {
         }
         Parent.childContextTypes = {text: React.PropTypes.string };
 
-        const element = renderOnServer(<Parent/>);
+        const element = getSsrDom(<Parent/>);
         expect(element.querySelector('#classChild').textContent).toBe('purple');
         expect(element.querySelector('#statelessChild').textContent).toBe('purple');
         expect(element.querySelector('#classWoChild').textContent).toBe('');
@@ -466,7 +543,7 @@ describe('ReactServerRendering', function() {
         }
         Parent.childContextTypes = {text: React.PropTypes.string };
 
-        const element = renderOnServer(<Parent/>);
+        const element = getSsrDom(<Parent/>);
         expect(element.querySelector('#childContext').textContent).toBe('');
         expect(element.querySelector('#statelessGrandchild').textContent).toBe('purple');
         expect(element.querySelector('#classGrandchild').textContent).toBe('purple');
@@ -498,7 +575,7 @@ describe('ReactServerRendering', function() {
         };
         Grandchild.contextTypes = {text: React.PropTypes.string};
 
-        expect(renderOnServer(<Parent/>).textContent).toBe('red');
+        expect(getSsrDom(<Parent/>).textContent).toBe('red');
       });
 
       it('should merge a child context with a parent context', function() {
@@ -527,7 +604,7 @@ describe('ReactServerRendering', function() {
         };
         Grandchild.contextTypes = {text1: React.PropTypes.string, text2: React.PropTypes.string};
 
-        const element = renderOnServer(<Parent/>);
+        const element = getSsrDom(<Parent/>);
         expect(element.querySelector('#first').textContent).toBe('purple');
         expect(element.querySelector('#second').textContent).toBe('red');
       });
@@ -551,7 +628,7 @@ describe('ReactServerRendering', function() {
         };
         Child.contextTypes = {text: React.PropTypes.string};
 
-        expect(renderOnServer(<Parent/>).textContent).toBe('foo');
+        expect(getSsrDom(<Parent/>).textContent).toBe('foo');
       });
 
 
@@ -564,7 +641,7 @@ describe('ReactServerRendering', function() {
             return {foo: 'bar'};
           }
         }
-        expect(() => renderOnServer(<Component/>)).toThrow();
+        expect(() => getSsrDom(<Component/>)).toThrow();
       });
 
       it('throws if getChildContext returns a value not in childContextTypes', function() {
@@ -577,7 +654,7 @@ describe('ReactServerRendering', function() {
           }
         }
         Component.childContextTypes = {value1: React.PropTypes.string};
-        expect(() => renderOnServer(<Component/>)).toThrow();
+        expect(() => getSsrDom(<Component/>)).toThrow();
       });
 
       // TODO: warn about context types in DEV mode?
