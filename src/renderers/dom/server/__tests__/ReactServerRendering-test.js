@@ -439,6 +439,14 @@ describe('ReactServerRendering', function() {
         /* eslint-enable react/jsx-boolean-value */
         expect(getSsrDom(<div htmlFor={false}/>).getAttribute('for')).toBe('false');
       });
+
+      it('does not render key, children, ref, or dangerouslySetInnerHTML as attributes', function() {
+        expect(getSsrDom(<div key="foo"/>).getAttribute('key')).toBe(null);
+        expect(getSsrDom(React.createElement('div', {}, 'foo')).getAttribute('children')).toBe(null);
+        expect(getSsrDom(<div ref="foo"/>).getAttribute('ref')).toBe(null);
+        expect(getSsrDom(<div dangerouslySetInnerHTML={{__html:'foo'}}/>).getAttribute('dangerouslySetInnerHTML'))
+          .toBe(null);
+      });
     });
 
     describe('context', function() {

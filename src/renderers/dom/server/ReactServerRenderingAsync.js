@@ -333,9 +333,11 @@ const propsToAttributes = (props, tagName, selectValues) => {
   }
 
   for (var name in props) {
-    if (name === 'children'
+    if (
+      name === 'children'
       || name === 'dangerouslySetInnerHTML'
       || name === 'ref'
+      || name === 'key'
       || (tagName === 'textarea' && (name === 'value' || name === 'defaultValue'))
       || (tagName === 'select' && (name === 'value' || name === 'defaultValue'))
       || !props.hasOwnProperty(name)
