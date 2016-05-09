@@ -275,20 +275,8 @@ const getNativeComponent = (element, context) => {
     // fire those calls now.
     updater.drainQueue();
 
-    if (component && component.getChildContext) {
-      if (!element.type.childContextTypes) {
-        // TODO: how best to get the component display name here?
-        throw new Error('childContextTypes must be defined in order to use getChildContext().');
-      }
-      var childContext = component.getChildContext();
-      for (var childContextName in childContext) {
-        if (!element.type.childContextTypes.hasOwnProperty(childContextName)) {
-          // TODO: how best to get the component display name here?
-          throw new Error(`getChildContext(): key "${childContextName}" is not defined in childContextTypes.`);
-        }
-      }
-      context = Object.assign({}, context, childContext);
-    }
+    // now handle child context if this component has getChildContext.
+    context = getChildContext(component, context, element.type.childContextTypes);
 
     // finally, render the component.
     if (component && component.render) {
@@ -299,6 +287,25 @@ const getNativeComponent = (element, context) => {
     }
   }
   return {element, context};
+};
+
+const getChildContext = (component, context, childContextTypes) => {
+  if (component && component.getChildContext) {
+    if (!childContextTypes) {
+      // TODO: how best to get the component display name here?
+      throw new Error('childContextTypes must be defined in order to use getChildContext().');
+    }
+    var childContext = component.getChildContext();
+    for (var childContextName in childContext) {
+      if (!childContextTypes.hasOwnProperty(childContextName)) {
+        // TODO: how best to get the component display name here?
+        throw new Error(`getChildContext(): key "${childContextName}" is not defined in childContextTypes.`);
+      }
+    }
+    // merge child context into parent context.
+    context = Object.assign({}, context, childContext);
+  }
+  return context;
 };
 
 const filterContext = (context, types) => {
