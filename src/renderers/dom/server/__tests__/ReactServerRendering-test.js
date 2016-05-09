@@ -352,6 +352,18 @@ describe('ReactServerRendering', function() {
           '<div></div></div>');
     });
 
+    it('should run getInitialState', function() {
+      const Component = React.createClass({
+        getInitialState: function() {
+          return {text: 'foo'};
+        },
+        render: function() {
+          return <div>{this.state.text}</div>;
+        },
+      });
+      expect(renderOnServer(<Component/>).textContent).toBe('foo');
+    });
+
     describe('context', function() {
       it('can render context', function() {
         class ClassChildWithContext extends React.Component {
@@ -571,7 +583,6 @@ describe('ReactServerRendering', function() {
       // TODO: warn about context types in DEV mode?
 
     });
-    // TODO: test getInitialState
 
     describe('reconnecting to server markup', function() {
       var EmptyComponent;
