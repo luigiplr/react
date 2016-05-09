@@ -352,6 +352,227 @@ describe('ReactServerRendering', function() {
           '<div></div></div>');
     });
 
+    describe('context', function() {
+      it('can render context', function() {
+        class ClassChildWithContext extends React.Component {
+            render() {
+              return <div id="classChild">{this.context.text}</div>;
+            }
+        }
+        ClassChildWithContext.contextTypes = {text: React.PropTypes.string};
+
+        function StatelessChildWithContext(props, context) {
+          return <div id="statelessChild">{context.text}</div>;
+        }
+        StatelessChildWithContext.contextTypes = {text: React.PropTypes.string};
+
+        class ClassChildWithoutContext extends React.Component {
+            render() {
+              // this should render blank; context isn't passed to this component.
+              return <div id="classWoChild">{this.context.text}</div>;
+            }
+        }
+
+        function StatelessChildWithoutContext(props, context) {
+          // this should render blank; context isn't passed to this component.
+          return <div id="statelessWoChild">{context.text}</div>;
+        }
+
+        class ClassChildWithWrongContext extends React.Component {
+            render() {
+              // this should render blank; context.text isn't passed to this component.
+              return <div id="classWrongChild">{this.context.text}</div>;
+            }
+        }
+        ClassChildWithWrongContext.contextTypes = {foo: React.PropTypes.string};
+
+        function StatelessChildWithWrongContext(props, context) {
+          // this should render blank; context.text isn't passed to this component.
+          return <div id="statelessWrongChild">{context.text}</div>;
+        }
+        StatelessChildWithWrongContext.contextTypes = {foo: React.PropTypes.string};
+
+        class Parent extends React.Component {
+          getChildContext() {
+            return {text: 'purple'};
+          }
+          render() {
+            return (
+              <div id="parent">
+                <ClassChildWithContext/>
+                <StatelessChildWithContext/>
+                <ClassChildWithWrongContext/>
+                <StatelessChildWithWrongContext/>
+                <ClassChildWithoutContext/>
+                <StatelessChildWithoutContext/>
+              </div>);
+          }
+        }
+        Parent.childContextTypes = {text: React.PropTypes.string };
+
+        const element = renderOnServer(<Parent/>);
+        expect(element.querySelector('#classChild').textContent).toBe('purple');
+        expect(element.querySelector('#statelessChild').textContent).toBe('purple');
+        expect(element.querySelector('#classWoChild').textContent).toBe('');
+        expect(element.querySelector('#statelessWoChild').textContent).toBe('');
+        expect(element.querySelector('#classWrongChild').textContent).toBe('');
+        expect(element.querySelector('#statelessWrongChild').textContent).toBe('');
+      });
+
+      it('can pass context through to a grandchild', function() {
+        class ClassGrandchild extends React.Component {
+          render() {
+            return <div id="classGrandchild">{this.context.text}</div>;
+          }
+        }
+        ClassGrandchild.contextTypes = {text: React.PropTypes.string};
+
+        function StatelessGrandchild(props, context) {
+          return <div id="statelessGrandchild">{context.text}</div>;
+        }
+        StatelessGrandchild.contextTypes = {text: React.PropTypes.string};
+
+        class Child extends React.Component {
+            render() {
+              // Child has no contextTypes; contents of #childContext should be a blank string.
+              return (
+                <div id="child">
+                  <div id="childContext">{this.context.text}</div>
+                  <ClassGrandchild/>
+                  <StatelessGrandchild/>
+                </div>);
+            }
+        }
+
+        class Parent extends React.Component {
+          getChildContext() {
+            return {text: 'purple'};
+          }
+          render() {
+            return <div id="parent"><Child/></div>;
+          }
+        }
+        Parent.childContextTypes = {text: React.PropTypes.string };
+
+        const element = renderOnServer(<Parent/>);
+        expect(element.querySelector('#childContext').textContent).toBe('');
+        expect(element.querySelector('#statelessGrandchild').textContent).toBe('purple');
+        expect(element.querySelector('#classGrandchild').textContent).toBe('purple');
+      });
+
+      it('should let a child context override a parent context', function() {
+        class Parent extends React.Component {
+          getChildContext() {
+            return {text: 'purple'};
+          }
+          render() {
+            return <Child/>;
+          }
+        }
+        Parent.childContextTypes = {text: React.PropTypes.string};
+
+        class Child extends React.Component {
+          getChildContext() {
+            return {text: 'red'};
+          }
+          render() {
+            return <Grandchild/>;
+          }
+        }
+        Child.childContextTypes = {text: React.PropTypes.string};
+
+        const Grandchild = (props, context) => {
+          return <div>{context.text}</div>;
+        };
+        Grandchild.contextTypes = {text: React.PropTypes.string};
+
+        expect(renderOnServer(<Parent/>).textContent).toBe('red');
+      });
+
+      it('should merge a child context with a parent context', function() {
+        class Parent extends React.Component {
+          getChildContext() {
+            return {text1: 'purple'};
+          }
+          render() {
+            return <Child/>;
+          }
+        }
+        Parent.childContextTypes = {text1: React.PropTypes.string};
+
+        class Child extends React.Component {
+          getChildContext() {
+            return {text2: 'red'};
+          }
+          render() {
+            return <Grandchild/>;
+          }
+        }
+        Child.childContextTypes = {text2: React.PropTypes.string};
+
+        const Grandchild = (props, context) => {
+          return <div><div id="first">{context.text1}</div><div id="second">{context.text2}</div></div>;
+        };
+        Grandchild.contextTypes = {text1: React.PropTypes.string, text2: React.PropTypes.string};
+
+        const element = renderOnServer(<Parent/>);
+        expect(element.querySelector('#first').textContent).toBe('purple');
+        expect(element.querySelector('#second').textContent).toBe('red');
+      });
+
+      it('should run componentWillMount before getChildContext', function() {
+        class Parent extends React.Component {
+          getChildContext() {
+            return {text: this.state.text};
+          }
+          componentWillMount() {
+            this.setState({text: 'foo'});
+          }
+          render() {
+            return <Child/>;
+          }
+        }
+        Parent.childContextTypes = {text: React.PropTypes.string};
+
+        const Child = (props, context) => {
+          return <div>{context.text}</div>;
+        };
+        Child.contextTypes = {text: React.PropTypes.string};
+
+        expect(renderOnServer(<Parent/>).textContent).toBe('foo');
+      });
+
+
+      it('throws if getChildContext exists without childContextTypes', function() {
+        class Component extends React.Component {
+          render() {
+            return <div/>;
+          }
+          getChildContext() {
+            return {foo: 'bar'};
+          }
+        }
+        expect(() => renderOnServer(<Component/>)).toThrow();
+      });
+
+      it('throws if getChildContext returns a value not in childContextTypes', function() {
+        class Component extends React.Component {
+          render() {
+            return <div/>;
+          }
+          getChildContext() {
+            return {value1: 'foo', value2: 'bar'};
+          }
+        }
+        Component.childContextTypes = {value1: React.PropTypes.string};
+        expect(() => renderOnServer(<Component/>)).toThrow();
+      });
+
+      // TODO: warn about context types in DEV mode?
+
+    });
+    // TODO: test getInitialState
+
     describe('reconnecting to server markup', function() {
       var EmptyComponent;
       beforeEach(() => {

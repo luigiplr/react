@@ -63,6 +63,8 @@ var newlineEatingTags = {
   'textarea': true,
 };
 
+var EMPTY_OBJECT = {};
+
 // in order to get good checking of event names, we need to inject event plugins
 // this was copied from ReactDefaultInjection.js
 ReactInjection.EventPluginHub.injectEventPluginsByName({
@@ -100,7 +102,9 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
   // first, if tree.element is a component type (not a dom node), instantiate it
   // and call componentWillMount/render as needed. keep doing this until tree.element
   // is a dom node.
-  const element = tree.element = getNativeComponent(tree.element);
+  const {element, context} = getNativeComponent(tree.element, tree.context || {});
+  tree.element = element;
+  tree.context = context;
 
   // when there's a false child, it's rendered as an empty string.
   if (element === false) {
@@ -178,7 +182,7 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
 
     const elementChildren = props.children.length ? props.children : [props.children];
     tree.children = [];
-    addChildrenToArray(elementChildren, tree.children);
+    addChildrenToArray(elementChildren, tree.children, tree.context);
   }
 
   for (tree.childIndex = tree.childIndex || 0; tree.childIndex < tree.children.length; tree.childIndex++) {
@@ -223,47 +227,68 @@ const getSelectValues = (tag, props) => {
   return result;
 };
 
-const addChildrenToArray = (children, resultArray) => {
+const addChildrenToArray = (children, resultArray, context) => {
   for (var i = 0; i < children.length; i++) {
     const child = children[i];
     if (Array.isArray(child)) {
-      addChildrenToArray(child, resultArray);
+      addChildrenToArray(child, resultArray, context);
     } else if (child === null || child === false) {
       // null children do NOT result in an empty node; they just aren't rendered.
       continue;
     } else if (typeof child === 'object') {
-      resultArray.push({element: child});
+      resultArray.push({element: child, context});
     } else {
       resultArray.push(child);
     }
   }
 };
 
-const getNativeComponent = (element) => {
-  while (element && typeof element.type !== 'string' && typeof element.type !== 'number' && typeof element.type !== 'undefined') {
-    // TODO: what to do about context?
-    const context = {};
+const getNativeComponent = (element, context) => {
+  while (element && typeof element.type !== 'string'
+    && typeof element.type !== 'number' && typeof element.type !== 'undefined') {
+
     let component = null;
+
+    // which parts of the context should we expose to the component, if any?
+    var contextToExpose = element.type.contextTypes ?
+      filterContext(context, element.type.contextTypes) :
+      EMPTY_OBJECT;
 
     // instantiate the component.
     if (shouldConstruct(element.type)) {
-      component = new element.type(element.props, context, updater);
+      component = new element.type(element.props, contextToExpose, updater);
       if (!component.render) {
         // TODO: get the component display name for the error.
         throw new Error('The component has no render method.');
       }
     } else if (typeof element.type === 'function') {
       // just call as function for stateless components or factory components.
-      component = element.type(element.props, context);
+      component = element.type(element.props, contextToExpose);
     }
 
     // if it has a componentWillMount method, we need to fire it now.
     if (component && component.componentWillMount) {
       component.componentWillMount();
     }
+
     // if setState or replaceState was called in componentWillMount, we need to
     // fire those calls now.
     updater.drainQueue();
+
+    if (component && component.getChildContext) {
+      if (!element.type.childContextTypes) {
+        // TODO: how best to get the component display name here?
+        throw new Error('childContextTypes must be defined in order to use getChildContext().');
+      }
+      var childContext = component.getChildContext();
+      for (var childContextName in childContext) {
+        if (!element.type.childContextTypes.hasOwnProperty(childContextName)) {
+          // TODO: how best to get the component display name here?
+          throw new Error(`getChildContext(): key "${childContextName}" is not defined in childContextTypes.`);
+        }
+      }
+      context = Object.assign({}, context, childContext);
+    }
 
     // finally, render the component.
     if (component && component.render) {
@@ -273,7 +298,15 @@ const getNativeComponent = (element) => {
       element = component;
     }
   }
-  return element;
+  return {element, context};
+};
+
+const filterContext = (context, types) => {
+  const result = {};
+  for (var name in types) {
+    result[name] = context[name];
+  }
+  return result;
 };
 
 const propsToAttributes = (props, tagName, selectValues) => {
