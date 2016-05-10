@@ -386,12 +386,14 @@ describe('ReactServerRendering', function() {
         // that the boolean property is present. however, it is how the current code
         // behaves, so the test is included here.
         expect(getSsrDom(<div hidden=""/>).getAttribute('hidden')).toBe(null);
-        // I also disagree with the behavior of the next two tests; I think it's
+        // I also disagree with the behavior of the next five tests; I think it's
         // overly clever and masks what may be a programmer error. Ideally, it would
         // warn and pass the value through.
         expect(getSsrDom(<div hidden="foo"/>).getAttribute('hidden')).toBe('');
         expect(getSsrDom(<div hidden={['foo', 'bar']}/>).getAttribute('hidden')).toBe('');
         expect(getSsrDom(<div hidden={{foo:'bar'}}/>).getAttribute('hidden')).toBe('');
+        expect(getSsrDom(<div hidden={10}/>).getAttribute('hidden')).toBe('');
+        expect(getSsrDom(<div hidden={0}/>).getAttribute('hidden')).toBe(null);
 
         expect(getSsrDom(<div hidden={false}/>).getAttribute('hidden')).toBe(null);
         expect(getSsrDom(<div/>).getAttribute('hidden')).toBe(null);
@@ -421,7 +423,7 @@ describe('ReactServerRendering', function() {
         expect(getSsrDom(<div className="myClassName"/>).getAttribute('class')).toBe('myClassName');
         expect(getSsrDom(<div className=""/>).getAttribute('class')).toBe('');
         // I disagree with the behavior of the next three tests; I think that a boolean value should
-        // warn, and not transform the value. This is current behavior.
+        // warn, and not transform the value. These tests express current behavior.
         expect(getSsrDom(<div className={true}/>).getAttribute('class')).toBe('true');
         /* eslint-disable react/jsx-boolean-value */
         expect(getSsrDom(<div className/>).getAttribute('class')).toBe('true');
@@ -432,7 +434,7 @@ describe('ReactServerRendering', function() {
         expect(getSsrDom(<div htmlFor="myFor"/>).getAttribute('for')).toBe('myFor');
         expect(getSsrDom(<div htmlFor=""/>).getAttribute('for')).toBe('');
         // I disagree with the behavior of the next three tests; I think that a boolean value should
-        // warn, and not transform the value. This is current behavior.
+        // warn, and not transform the value. These tests express current behavior.
         expect(getSsrDom(<div htmlFor={true}/>).getAttribute('for')).toBe('true');
         /* eslint-disable react/jsx-boolean-value */
         expect(getSsrDom(<div htmlFor/>).getAttribute('for')).toBe('true');
@@ -446,6 +448,18 @@ describe('ReactServerRendering', function() {
         expect(getSsrDom(<div ref="foo"/>).getAttribute('ref')).toBe(null);
         expect(getSsrDom(<div dangerouslySetInnerHTML={{__html:'foo'}}/>).getAttribute('dangerouslySetInnerHTML'))
           .toBe(null);
+      });
+
+      it('does not render unknown attributes', function() {
+        expect(getSsrDom(<div foo="bar"/>).getAttribute('foo')).toBe(null);
+      });
+
+      it('does not render HTML events', function() {
+        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('onClick')).toBe(null);
+        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('onclick')).toBe(null);
+        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('click')).toBe(null);
+        expect(getSsrDom(<div onKeyDown={() => {}}/>).getAttribute('onKeyDown')).toBe(null);
+        expect(getSsrDom(<div onCustomEvent={() => {}}/>).getAttribute('onCustomEvent')).toBe(null);
       });
     });
 
