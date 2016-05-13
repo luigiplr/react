@@ -31,6 +31,7 @@ var escapeTextContentForBrowser = require('escapeTextContentForBrowser');
 var ReactInjection = require('ReactInjection');
 var SelectEventPlugin = require('SelectEventPlugin');
 var SimpleEventPlugin = require('SimpleEventPlugin');
+var warning = require('warning');
 
 var registrationNameModules = EventPluginRegistry.registrationNameModules;
 
@@ -76,7 +77,27 @@ ReactInjection.EventPluginHub.injectEventPluginsByName({
 });
 
 
-// TODO: make this real like a generator
+/**
+ * render the element in question to a string.
+ * @param {ReactElement} element the element to render
+ * @param {int} length the number of characters to render. note that this is approximate;
+ *  the method can render more or fewer.
+ * @param {boolean} makeStaticMarkup if true, generate static markup (i.e. no react-text
+ *  or react-empty comment nodes
+ * @returns an object with two properties:
+ *  text: the rendered string
+ *  next(length): a function to get the next length characters. returns a similar
+ *   {text, next} object or null if the render is done.
+ */
+const render = (element, length, makeStaticMarkup) => {
+  const tree = {
+    element,
+    root: !makeStaticMarkup,
+  };
+  return renderResultToGenerator(renderImpl(tree, length, makeStaticMarkup), tree, makeStaticMarkup);
+};
+
+// TODO: make this act more like a generator iterator?
 const renderResultToGenerator = (result, tree, makeStaticMarkup) => {
   return {
     text: result.text,
@@ -89,47 +110,39 @@ const renderResultToGenerator = (result, tree, makeStaticMarkup) => {
   };
 };
 
-const render = (element, length, makeStaticMarkup) => {
-  const tree = {
-    element,
-    root: !makeStaticMarkup,
-  };
-  return renderResultToGenerator(renderImpl(tree, length, makeStaticMarkup), tree, makeStaticMarkup);
-};
-
 // side effect: modifies tree in place.
 const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
-  // first, if tree.element is a component type (not a dom node), instantiate it
+  // first, if tree.element is a component type (not a dom node type), instantiate it
   // and call componentWillMount/render as needed. keep doing this until tree.element
   // is a dom node.
   const {element, context} = getNativeComponent(tree.element, tree.context || {});
   tree.element = element;
   tree.context = context;
 
-  // when there's a false child, it's rendered as an empty string.
-  if (element === false) {
-    return {done:true, text:''};
-  }
-
-  // an empty (null) element translates to a comment node.
-  if (element === null) {
+  // an empty (null or false) component translates to an empty comment node.
+  if (element === null || element === false) {
     return {done: true, text: makeStaticMarkup ? '' : '<!-- react-empty -->'};
   }
 
+  // TODO: maybe just check if !isReactElement instead of is undefined
   if (element === undefined) {
     throw new Error('A ReactElement resolved to undefined, which is not an allowed value.');
   }
 
   // now, we should have a dom element (element.type is a string)
-  const {props, type: rawTag} = element;
+  let {props, type: rawTag} = element;
   if (typeof rawTag !== 'string') {
     throw new Error(`A ReactElement had a type of '${rawTag}', when it should have been a tag name.`);
   }
   const tag = rawTag.toLowerCase();
+
+  props = canonicalizeProps(tag, props);
+
   const attributes = (tree.root ? ' data-reactroot=""' : '') + propsToAttributes(props, tag, selectValues);
   if (voidTags[tag]
     && (props.children === '' || props.children === null || props.children === undefined)) {
 
+    // TODO: maybe we should omit the trailing slash here? shouldn't be needed in html5.
     return {done: true, text: '<' + tag + attributes + '/>'};
   }
   const prefix = '<' + tag + attributes + '>';
@@ -139,53 +152,62 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
     return {done: true, text: prefix + suffix};
   }
 
-  if (!tree.filter) {
-    tree.filter = identityFn;
-
+  // when we have a newline-eating tag, we have to listen to the content from
+  // our children and add a leading '\n' if the content from the children starts
+  // with a '\n'. we store this as a function on tree.transform, which acts like a
+  // Transform stream on the content from children.
+  // if this is NOT a newline-eating tag, then tree.transform is just the identity
+  // function (i.e. a straight passthrough).
+  if (!tree.transform) {
+    tree.transform = identityTransform;
     if (newlineEatingTags[tag]) {
-      var childTextProcessed = false;
-      tree.filter = (text) => {
-        if (childTextProcessed || text.length === 0) {
-          return text;
-        }
-        childTextProcessed = true;
-        if (text.charAt(0) === '\n') {
-          text = '\n' + text;
-        }
-        return text;
-      };
+      tree.transform = getNewlineEatingTransform();
     }
   }
 
-  if (tag === 'textarea' && (props.hasOwnProperty('value') || props.hasOwnProperty('defaultValue'))) {
-    let textareaValue = props.hasOwnProperty('value') ? props.value : props.defaultValue;
-    return {done: true, text: prefix + escapeTextContentForBrowser(tree.filter(textareaValue)) + suffix};
-  }
-
   // if dangerouslySetInnerHTML is set, then that's the contents, and we ignore the children.
+  // TODO: error or warn if there are children and a dangerouslySetInnerHTML prop.
   if (props.dangerouslySetInnerHTML && props.dangerouslySetInnerHTML.__html) {
-    return {done: true, text: prefix + tree.filter(props.dangerouslySetInnerHTML.__html) + suffix};
+    // note that we do not call escapeTextContentForBrowser; this is intentional, since
+    // this is an explicit dangerous innerHTML call.
+    return {done: true, text: prefix + tree.transform(props.dangerouslySetInnerHTML.__html) + suffix};
   }
 
-  if (!props.children) {
+  if (!props.hasOwnProperty('children')
+    || props.children === undefined
+    || props.children === null) {
     return {done: true, text: prefix + suffix};
   }
 
   // if there a single child that is a string or number, that's the text of the node.
+  // note that this if branch can't be incorporated into the child looping below because
+  // the rendering is different when there's a single string or number child; there
+  // are no react-text comment nodes in that case.
   if (typeof props.children === 'string' || typeof props.children === 'number') {
-    return {done: true, text: prefix + escapeTextContentForBrowser(tree.filter(props.children)) + suffix};
+    return {done: true, text: prefix + escapeTextContentForBrowser(tree.transform(props.children)) + suffix};
   }
 
+  // if we've gotten to this point, it means that we need to iterate through the children
+  // and render each of them.
   let text = '';
   if (!tree.hasOwnProperty('childIndex')) {
+    // this means this is the first time we've tried to render this element's children.
+    // we need to do a few things before we loop over the children.
     text = prefix;
 
+    // flatten the element's children into an array, and store it at tree.children.
+    // storing it means that if we have to restart rendering midway through this loop, we won't
+    // need to regenerate the child list when next() is called.
     const elementChildren = props.children.length ? props.children : [props.children];
     tree.children = [];
     addChildrenToArray(elementChildren, tree.children, tree.context);
+
+    // store the index of the child we are currently working on. this needs to be
+    // stored on tree so that we can restart rendering if next() is called.
+    tree.childIndex = 0;
   }
 
-  for (tree.childIndex = tree.childIndex || 0; tree.childIndex < tree.children.length; tree.childIndex++) {
+  for (; tree.childIndex < tree.children.length; tree.childIndex++) {
     if (text.length >= length) {
       return {done:false, text};
     }
@@ -193,28 +215,99 @@ const renderImpl = (tree, length, makeStaticMarkup, selectValues) => {
     const child = tree.children[tree.childIndex];
 
     if (typeof child === 'string' || typeof child === 'number') {
-      text += tree.filter(makeStaticMarkup ?
+      text += tree.transform(makeStaticMarkup ?
         escapeTextContentForBrowser(child) :
-        '<!-- react-text -->' + child + '<!-- /react-text -->');
+        '<!-- react-text -->' + escapeTextContentForBrowser(child) + '<!-- /react-text -->');
       continue;
     }
 
     if (!selectValues) {
       selectValues = getSelectValues(tag, props);
     }
+    // we have a child component, and we need to recurse into it.
     const childResults = renderImpl(child, length - text.length, makeStaticMarkup, selectValues);
-    text += tree.filter(childResults.text);
+    text += tree.transform(childResults.text);
 
+    // if rendering of one of our descendants stopped, we should stop as well and return
+    // up the call stack. since we are keeping track of where we are in the children
+    // list with tree.childIndex, we will come back to the correct place when next() is called.
     if (!childResults.done) {
       return {done: false, text};
     }
   }
-  // now that we are done, free up the tree.
+  // now that we are done with this element, free up the instantiated children.
   tree.children = null;
   return {done: true, text: text + suffix};
 };
 
-const identityFn = (text) => text;
+const identityTransform = (text) => text;
+
+const getNewlineEatingTransform = () => {
+  var isFirstText = true;
+  return (text) => {
+    if (isFirstText && text.length !== 0) {
+      isFirstText = false;
+      if (text.charAt(0) === '\n') {
+        return '\n' + text;
+      }
+    }
+    return text;
+  };
+};
+
+// props don't always correspond directly to attributes, especially when it comes
+// to form inputs (input, select, textarea). this method returns the props that
+// should be used for this element. it also throws some warnings when props are
+// poorly set up.
+const canonicalizeProps = (tag, props) => {
+  // TODO: make this DRYer; there's a lot of repeated logic.
+  if (tag === 'input') {
+    // check to see if this is a controlled input without onChange or readOnly.
+    warning(
+      !props.hasOwnProperty('checked') || props.onChange || props.readOnly,
+      'Failed form propType: You provided a `checked` prop to a form field without an ' +
+      '`onChange` handler. This will render a read-only field. If the field should ' +
+      'be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.');
+    warning(
+      !(props.hasOwnProperty('checked') && props.hasOwnProperty('defaultChecked')),
+      '%s elements must be either controlled or uncontrolled (specify either the ' +
+      'checked prop, or the defaultChecked prop, but not both). Decide between using a ' +
+      'controlled or uncontrolled input element and remove one of these props. ' +
+      'More info: https://fb.me/react-controlled-components',
+      tag);
+  }
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    // check to see if this is a controlled input without onChange or readOnly.
+    warning(
+      !props.hasOwnProperty('value') || props.onChange || props.readOnly,
+      'Failed form propType: You provided a `value` prop to a form field without an ' +
+      '`onChange` handler. This will render a read-only field. If the field should ' +
+      'be mutable use `defaultValue`. Otherwise, set either `onChange` or `readOnly`.');
+    warning(
+      !(props.hasOwnProperty('value') && props.hasOwnProperty('defaultValue')),
+      '%s elements must be either controlled or uncontrolled (specify either the ' +
+      'value prop, or the defaultValue prop, but not both). Decide between using a ' +
+      'controlled or uncontrolled input element and remove one of these props. ' +
+      'More info: https://fb.me/react-controlled-components',
+      tag);
+  }
+  // TODO: warn about textarea having (value || defaultValue) and children
+  // convert default[Checked|Value] into [checked|value]
+  props = Object.assign(
+    {
+      checked: props.defaultChecked,
+      value: props.defaultValue,
+    },
+    props,
+    {
+      defaultChecked: undefined,
+      defaultValue: undefined,
+    });
+  if (tag === 'textarea') {
+    Object.assign(props, {children: props.value, value: undefined});
+  }
+  return props;
+};
 
 const getSelectValues = (tag, props) => {
   let result = null;
@@ -233,7 +326,7 @@ const addChildrenToArray = (children, resultArray, context) => {
     if (Array.isArray(child)) {
       addChildrenToArray(child, resultArray, context);
     } else if (child === null || child === false) {
-      // null children do NOT result in an empty node; they just aren't rendered.
+      // null and false children do NOT result in an empty node; they just aren't rendered.
       continue;
     } else if (typeof child === 'object') {
       resultArray.push({element: child, context});
@@ -319,7 +412,8 @@ const filterContext = (context, types) => {
 const propsToAttributes = (props, tagName, selectValues) => {
   let result = '';
 
-  // for select values
+  // if there are select values, check to see if this is an option tag
+  // that should be selected.
   if (tagName === 'option' && selectValues) {
     var optionValue = props.value;
     if (optionValue) {
@@ -333,12 +427,7 @@ const propsToAttributes = (props, tagName, selectValues) => {
   }
 
   for (var name in props) {
-    if (
-      name === 'children'
-      || name === 'dangerouslySetInnerHTML'
-      || name === 'ref'
-      || name === 'key'
-      || (tagName === 'textarea' && (name === 'value' || name === 'defaultValue'))
+    if ((tagName === 'textarea' && (name === 'value' || name === 'defaultValue'))
       || (tagName === 'select' && (name === 'value' || name === 'defaultValue'))
       || !props.hasOwnProperty(name)
       || registrationNameModules.hasOwnProperty(name)) {
@@ -379,13 +468,14 @@ const updater = {
   isMounted: function(publicInstance) {
     return false;
   },
-  // no-op
+
   enqueueCallback: function(publicInstance, callback) {
     if (callback) {
       this.queue.push(callback);
     }
   },
 
+  // no-op
   enqueueForceUpdate: function(publicInstance) { },
 
   enqueueReplaceState: function(publicInstance, completeState) {

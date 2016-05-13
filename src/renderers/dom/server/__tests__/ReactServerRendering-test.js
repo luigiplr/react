@@ -14,12 +14,14 @@
 var ExecutionEnvironment;
 var React;
 var ReactDOM;
-var ReactMarkupChecksum;
 var ReactReconcileTransaction;
 var ReactTestUtils;
 var ReactServerRendering;
 
 var ROOT_ATTRIBUTE_NAME;
+
+const TEXT_NODE_TYPE = 3;
+const COMMENT_NODE_TYPE = 8;
 
 // Renders text using SSR and then stuffs it into a DOM node, which is returned.
 // Does not perform client-side reconnect.
@@ -86,6 +88,15 @@ function expectMarkupMatch(serverRendering, elementToRenderOnClient = serverRend
     return renderOnClient(elementToRenderOnClient, domElement, true);
   }
   return connectToServerRendering(serverRendering, elementToRenderOnClient, true);
+}
+
+function expectWarnings(count, fn) {
+  var oldConsoleError = console.error;
+  console.error = jasmine.createSpy();
+  var result = fn();
+  expect(console.error.argsForCall.length).toBe(count);
+  console.error = oldConsoleError;
+  return result;
 }
 
 describe('ReactServerRendering', function() {
@@ -315,47 +326,6 @@ describe('ReactServerRendering', function() {
       expect(numClicks).toEqual(2);
     });
 
-    it('can render a false child', () => {
-      class Foo extends React.Component {
-        render() {
-          return false;
-        }
-      }
-      expect(ReactServerRendering.renderToString(<Foo />)).toBe('');
-    });
-
-    it('can render a factory component', () => {
-      function Foo() {
-        return {
-          render() {
-            return <div>Foo</div>;
-          },
-        };
-      }
-      expect(getSsrDom(<Foo />).textContent).toBe('Foo');
-    });
-
-    it('can render null and false children', () => {
-      function Foo() {
-        return <div />;
-      }
-      var element = (
-        <div>
-          {'hi'}
-          {false}
-          {42}
-          {null}
-          <Foo />
-        </div>
-      );
-
-      expect(ReactServerRendering.renderToString(element))
-        .toBe('<div data-reactroot="">' +
-          '<!-- react-text -->hi<!-- /react-text -->' +
-          '<!-- react-text -->42<!-- /react-text -->' +
-          '<div></div></div>');
-    });
-
     it('should get initial state from getInitialState', function() {
       const Component = React.createClass({
         getInitialState: function() {
@@ -462,6 +432,325 @@ describe('ReactServerRendering', function() {
         expect(getSsrDom(<div onCustomEvent={() => {}}/>).getAttribute('onCustomEvent')).toBe(null);
       });
     });
+
+    describe('components and children', function() {
+      function expectNode(node, type, value) {
+        expect(node).not.toBe(null);
+        expect(node.nodeType).toBe(type);
+        expect(node.nodeValue).toBe(value);
+      }
+
+      function expectTextNode(node, text) {
+        expectNode(node, COMMENT_NODE_TYPE, ' react-text ');
+        if (text.length > 0) {
+          node = node.nextSibling;
+          expectNode(node, TEXT_NODE_TYPE, text);
+        }
+        expectNode(node.nextSibling, COMMENT_NODE_TYPE, ' /react-text ');
+      }
+
+      function expectEmptyNode(node) {
+        expectNode(node, COMMENT_NODE_TYPE, ' react-empty ');
+      }
+
+      it('renders a number as single child', () => expect(getSsrDom(<div>{3}</div>).textContent).toBe('3'));
+      // zero is falsey, so it could look like no children if the code isn't careful.
+      it('renders zero as single child', () => expect(getSsrDom(<div>{0}</div>).textContent).toBe('0'));
+      it('renders null single child as blank',
+        () => expect(getSsrDom(<div>{null}</div>).childNodes.length).toBe(0));
+      it('renders false single child as blank',
+        () => expect(getSsrDom(<div>{false}</div>).childNodes.length).toBe(0));
+      it('renders undefined single child as blank',
+        () => expect(getSsrDom(<div>{undefined}</div>).childNodes.length).toBe(0));
+
+      it('renders a null component as empty', function() {
+        const NullComponent = () => null;
+        expectEmptyNode(getSsrDom(<NullComponent/>));
+      });
+
+      it('renders a false component as empty', () => {
+        const FalseComponent = () => false;
+        expectEmptyNode(getSsrDom(<FalseComponent />));
+      });
+
+      it('throws rendering a string component', () => {
+        const StringComponent = () => 'foo';
+        expect(() => getSsrDom(<StringComponent/>)).toThrow();
+      });
+
+      it('throws rendering an undefined component', () => {
+        const UndefinedComponent = () => undefined;
+        expect(() => getSsrDom(<UndefinedComponent/>)).toThrow();
+      });
+
+      it('throws rendering a number component', () => {
+        const NumberComponent = () => 54;
+        expect(() => getSsrDom(<NumberComponent/>)).toThrow();
+      });
+
+      it('renders null and false children as blank', function() {
+        const element1 = getSsrDom(<div>{null}foo</div>);
+        expect(element1.childNodes.length).toBe(3);
+        expectTextNode(element1.childNodes[0], 'foo');
+
+        const element2 = getSsrDom(<div>{false}foo</div>);
+        expect(element2.childNodes.length).toBe(3);
+        expectTextNode(element2.childNodes[0], 'foo');
+
+        const element3 = getSsrDom(<div>{false}{null}foo{null}{false}</div>);
+        expect(element3.childNodes.length).toBe(3);
+        expectTextNode(element3.childNodes[0], 'foo');
+
+        const element4 = getSsrDom(<div>{false}{null}{null}{false}</div>);
+        expect(element4.childNodes.length).toBe(0);
+      });
+
+      it('renders blank children with comments when there are multiple children', function() {
+        const element1 = getSsrDom(<div>{''}foo</div>);
+        expect(element1.childNodes.length).toBe(5);
+        expectTextNode(element1.childNodes[0], '');
+        expectTextNode(element1.childNodes[2], 'foo');
+
+        const element2 = getSsrDom(<div>foo{''}</div>);
+        expect(element2.childNodes.length).toBe(5);
+        expectTextNode(element2.childNodes[0], 'foo');
+        expectTextNode(element2.childNodes[3], '');
+      });
+
+      it('renders an element with just one text child without comments', function() {
+        const element = getSsrDom(<div>foo</div>);
+        expect(element.childNodes.length).toBe(1);
+        expectNode(element.firstChild, TEXT_NODE_TYPE, 'foo');
+      });
+
+      it('renders an element with two text children with comments', function() {
+        const element = getSsrDom(<div>{'foo'}{'bar'}</div>);
+        expect(element.childNodes.length).toBe(6);
+        expectTextNode(element.childNodes[0], 'foo');
+        expectTextNode(element.childNodes[3], 'bar');
+      });
+
+      it('renders an element with number and text children with comments', function() {
+        const element = getSsrDom(<div>{'foo'}{40}</div>);
+        expect(element.childNodes.length).toBe(6);
+        expectTextNode(element.childNodes[0], 'foo');
+        expectTextNode(element.childNodes[3], '40');
+      });
+
+      it('renders stateless, React.createClass, class, and factory components', function() {
+        const StatelessComponent = () => <div>foo</div>;
+        const RccComponent = React.createClass({
+          render: function() {
+            return <div>foo</div>;
+          },
+        });
+        class ClassComponent extends React.Component {
+          render() {
+            return <div>foo</div>;
+          }
+        }
+        const FactoryComponent = () => {
+          return {
+            render: function() {
+              return <div>foo</div>;
+            },
+          };
+        };
+
+        [StatelessComponent, RccComponent, ClassComponent, FactoryComponent].forEach((Component) => {
+          const element = getSsrDom(<Component/>);
+          expect(element.childNodes.length).toBe(1);
+          expectNode(element.firstChild, TEXT_NODE_TYPE, 'foo');
+        });
+      });
+
+      it('escapes >,<, and & as single child', () => {
+        // we use markup (which is more brittle) here rather than DOM because rendering in to a
+        // document can unintentionally fix up incorrectly escaped text
+        const markup = ReactServerRendering.renderToString(<div>{'<>&'}</div>);
+        expect(markup).toBe('<div data-reactroot="">&lt;&gt;&amp;</div>');
+      });
+
+      it('escapes >,<, and & as multiple child', () => {
+        // we use markup (which is more brittle) here rather than DOM because rendering in to a
+        // document can unintentionally fix up incorrectly escaped text
+        const markup = ReactServerRendering.renderToString(<div>{'<>&'}{'&<>'}</div>);
+        expect(markup).toBe(
+          '<div data-reactroot="">' +
+          '<!-- react-text -->&lt;&gt;&amp;<!-- /react-text -->' +
+          '<!-- react-text -->&amp;&lt;&gt;<!-- /react-text -->' +
+          '</div>'
+        );
+      });
+
+      it('throws when rendering null', () => expect(() => getSsrDom(null)).toThrow());
+      it('throws when rendering false', () => expect(() => getSsrDom(false)).toThrow());
+      it('throws when rendering undefined', () => expect(() => getSsrDom(undefined)).toThrow());
+      it('throws when rendering number', () => expect(() => getSsrDom(30)).toThrow());
+      it('throws when rendering string', () => expect(() => getSsrDom('foo')).toThrow());
+    });
+
+    describe('form controls', function() {
+      // simple inputs
+      // -------------
+      it('can render an input with a value', () => {
+        expect(getSsrDom(<input value="foo" onChange={() => {}}/>).getAttribute('value')).toBe('foo');
+        expect(getSsrDom(<input value="foo" readOnly={true}/>).getAttribute('value')).toBe('foo');
+      });
+
+      it('can render an input with a value and no onChange/readOnly', function() {
+        const element = expectWarnings(1, () => getSsrDom(<input value="foo"/>));
+        expect(element.getAttribute('value')).toBe('foo');
+      });
+
+      it('can render an input with a defaultValue', function() {
+        const element = getSsrDom(<input defaultValue="foo"/>);
+        expect(element.getAttribute('value')).toBe('foo');
+        expect(element.getAttribute('defaultValue')).toBe(null);
+      });
+
+      it('can render an input with both a value and defaultValue part 1', () => {
+        const element = expectWarnings(1, () => getSsrDom(<input value="foo" defaultValue="bar" readOnly={true}/>));
+        expect(element.getAttribute('value')).toBe('foo');
+        expect(element.getAttribute('defaultValue')).toBe(null);
+      });
+
+      it('can render an input with both a value and defaultValue part 2', () => {
+        const element = expectWarnings(1, () => getSsrDom(<input defaultValue="bar" value="foo" readOnly={true}/>));
+        expect(element.getAttribute('value')).toBe('foo');
+        expect(element.getAttribute('defaultValue')).toBe(null);
+      });
+
+      // checkboxes
+      // ----------
+      it('can render a checkbox that is checked', () => {
+        expect(getSsrDom(<input type="checkbox" checked={true} onChange={() => {}}/>).getAttribute('checked')).toBe('');
+        expect(getSsrDom(<input type="checkbox" checked={true} readOnly={true}/>).getAttribute('checked')).toBe('');
+      });
+
+      it('can render a checkbox that is checked and no onChange/readOnly', function() {
+        const element = expectWarnings(1, () => getSsrDom(<input type="checkbox" checked={true}/>));
+        expect(element.getAttribute('checked')).toBe('');
+      });
+
+      it('can render a checkbox with defaultChecked', function() {
+        const element = getSsrDom(<input type="checkbox" defaultChecked={true}/>);
+        expect(element.getAttribute('checked')).toBe('');
+        expect(element.getAttribute('defaultChecked')).toBe(null);
+      });
+
+      it('can render a checkbox with both a checked and defaultChecked part 1', () => {
+        const element = expectWarnings(1,
+          () => getSsrDom(<input type="checkbox" checked={true} defaultChecked={false} readOnly={true}/>));
+        expect(element.getAttribute('checked')).toBe('');
+        expect(element.getAttribute('defaultChecked')).toBe(null);
+      });
+
+      it('can render a checkbox with both a checked and defaultChecked part 2', () => {
+        const element = expectWarnings(1,
+          () => getSsrDom(<input type="checkbox" defaultChecked={false} checked={true} readOnly={true}/>));
+        expect(element.getAttribute('checked')).toBe('');
+        expect(element.getAttribute('defaultChecked')).toBe(null);
+      });
+
+      // textareas
+      // ---------
+      it('can render a textarea with a value', () => {
+        const element1 = getSsrDom(<textarea value="foo" onChange={() => {}}/>);
+        expect(element1.getAttribute('value')).toBe(null);
+        expect(element1.value).toBe('foo');
+        const element2 = getSsrDom(<textarea value="foo" readOnly={true}/>);
+        expect(element2.getAttribute('value')).toBe(null);
+        expect(element2.value).toBe('foo');
+      });
+
+      it('can render a textarea with a value and no onChange/readOnly', function() {
+        const element = expectWarnings(1, () => getSsrDom(<textarea value="foo"/>));
+        expect(element.getAttribute('value')).toBe(null);
+        expect(element.value).toBe('foo');
+      });
+
+      it('can render a textarea with a defaultValue', function() {
+        const element = getSsrDom(<textarea defaultValue="foo"/>);
+        expect(element.getAttribute('value')).toBe(null);
+        expect(element.getAttribute('defaultValue')).toBe(null);
+        expect(element.value).toBe('foo');
+      });
+
+      it('can render a textarea with both a value and defaultValue part 1', () => {
+        const element = expectWarnings(1, () => getSsrDom(<textarea value="foo" defaultValue="bar" readOnly={true}/>));
+        expect(element.getAttribute('value')).toBe(null);
+        expect(element.getAttribute('defaultValue')).toBe(null);
+        expect(element.value).toBe('foo');
+      });
+
+      it('can render a textarea with both a value and defaultValue part 2', () => {
+        const element = expectWarnings(1, () => getSsrDom(<textarea defaultValue="bar" value="foo" readOnly={true}/>));
+        expect(element.getAttribute('value')).toBe(null);
+        expect(element.getAttribute('defaultValue')).toBe(null);
+        expect(element.value).toBe('foo');
+      });
+
+      // selects
+      // ---------
+      var options;
+      beforeEach(function() {
+        options = [
+          <option key={1} value="foo" id="foo">Foo</option>,
+          <option key={2} value="bar" id="bar">Bar</option>,
+          <option key={3} value="baz" id="baz">Baz</option>,
+        ];
+      });
+
+      const expectSelectValue = (element, selected) => {
+        // the select shouldn't have a value or defaultValue attribute.
+        expect(element.getAttribute('value')).toBe(null);
+        expect(element.getAttribute('defaultValue')).toBe(null);
+
+        ['foo', 'bar', 'baz'].forEach((value) => {
+          const selectedValue = selected.indexOf(value) === -1 ? null : '';
+          expect(element.querySelector(`#${value}`).getAttribute('selected')).toBe(selectedValue);
+        });
+      };
+      it('can render a select with a value', () => {
+        const element1 = getSsrDom(<select value="bar" onChange={() => {}}>{options}</select>);
+        expectSelectValue(element1, ['bar']);
+
+        const element2 = getSsrDom(<select value="bar" readOnly={true}>{options}</select>);
+        expectSelectValue(element2, ['bar']);
+
+        const element3 = getSsrDom(<select>{options}</select>);
+        expectSelectValue(element3, []);
+
+        const element4 = getSsrDom(
+          <select value={['bar', 'baz']} multiple={true} readOnly={true}>{options}</select>);
+        expectSelectValue(element4, ['bar', 'baz']);
+      });
+
+      it('can render a select with a value and no onChange/readOnly', function() {
+        const element = expectWarnings(1, () => getSsrDom(<select value="bar">{options}</select>));
+        expectSelectValue(element, ['bar']);
+      });
+
+      it('can render a select with a defaultValue', function() {
+        const element = getSsrDom(<select defaultValue="bar">{options}</select>);
+        expectSelectValue(element, ['bar']);
+      });
+
+      it('can render a select with both a value and defaultValue part 1', () => {
+        const element = expectWarnings(1,
+          () => getSsrDom(<select value="bar" defaultValue="baz" readOnly={true}>{options}</select>));
+        expectSelectValue(element, ['bar']);
+      });
+
+      it('can render a select with both a value and defaultValue part 2', () => {
+        const element = expectWarnings(1,
+          () => getSsrDom(<select defaultValue="baz" value="bar" readOnly={true}>{options}</select>));
+        expectSelectValue(element, ['bar']);
+      });
+
+    });
+
 
     describe('context', function() {
       it('can render context', function() {
