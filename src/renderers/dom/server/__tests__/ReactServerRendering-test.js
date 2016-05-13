@@ -104,7 +104,6 @@ describe('ReactServerRendering', function() {
     jest.resetModuleRegistry();
     React = require('React');
     ReactDOM = require('ReactDOM');
-    ReactMarkupChecksum = require('ReactMarkupChecksum');
     ReactTestUtils = require('ReactTestUtils');
     ReactReconcileTransaction = require('ReactReconcileTransaction');
 
