@@ -293,18 +293,20 @@ const canonicalizeProps = (tag, props) => {
   }
   // TODO: warn about textarea having (value || defaultValue) and children
   // convert default[Checked|Value] into [checked|value]
-  props = Object.assign(
-    {
-      checked: props.defaultChecked,
-      value: props.defaultValue,
-    },
-    props,
-    {
-      defaultChecked: undefined,
-      defaultValue: undefined,
-    });
-  if (tag === 'textarea') {
-    Object.assign(props, {children: props.value, value: undefined});
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    props = Object.assign(
+      {
+        checked: props.defaultChecked,
+        value: props.defaultValue,
+      },
+      props,
+      {
+        defaultChecked: undefined,
+        defaultValue: undefined,
+      });
+    if (tag === 'textarea') {
+      Object.assign(props, {children: props.value, value: undefined});
+    }
   }
   return props;
 };
