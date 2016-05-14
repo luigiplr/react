@@ -66,11 +66,16 @@ class RenderElementStream extends stream.Readable {
   }
 
   _read(n) {
-    if (this.element) {
-      this.chunk = ReactServerRenderingAsync.render(this.element, n, this.makeStaticMarkup);
-      this.element = null;
-    } else {
-      this.chunk = this.chunk.next(n);
+    try {
+      if (this.element) {
+        this.chunk = ReactServerRenderingAsync.render(this.element, n, this.makeStaticMarkup);
+        this.element = null;
+      } else {
+        this.chunk = this.chunk.next(n);
+      }
+    } catch (error) {
+      this.emit('error', error);
+      return;
     }
 
     if (this.chunk === null) {

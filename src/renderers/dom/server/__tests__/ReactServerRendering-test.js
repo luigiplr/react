@@ -99,6 +99,137 @@ function expectWarnings(count, fn) {
   return result;
 }
 
+// converts a readable string stream to a promise of string.
+function streamToPromise(stream) {
+  return new Promise((resolve, reject) => {
+    let result = '';
+    stream.on('data', chunk => result += chunk);
+    stream.on('error', e => reject(e));
+    stream.on('end', () => resolve(result));
+  });
+}
+
+function promiseToJasmineTest(promiseFn) {
+  return function() {
+    var done = false;
+    waitsFor(() => done);
+    promiseFn().then(() => done = true);
+  };
+}
+
+function failingPromiseToJasmineTest(promiseFn) {
+  return function() {
+    var done = false;
+    waitsFor(() => done);
+    promiseFn().catch(() => done = true);
+  };
+}
+
+const serverStringRender = element => {
+  try {
+    return Promise.resolve(getSsrDom(element));
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+const serverStreamRender = element => {
+  return streamToPromise(ReactServerRendering.renderToStream(element))
+    .then(markup => {
+      var div = document.createElement('div');
+      div.innerHTML = markup;
+      return div.firstChild;
+    });
+};
+const clientRender = element => {
+  try {
+    const div = document.createElement('div');
+    return Promise.resolve(renderOnClient(element, div).firstChild);
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+const clientRenderOnServerString = element => {
+  try {
+    return Promise.resolve(connectToServerRendering(element).firstChild);
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+const clientRenderOnServerStream = element => {
+  return streamToPromise(ReactServerRendering.renderToStream(element))
+    .then(markup => {
+      var div = document.createElement('div');
+      div.innerHTML = markup;
+      ReactDOM.render(element, div);
+      return div.firstChild;
+    });
+};
+const clientRenderOnBadMarkup = element => {
+  try {
+    return Promise.resolve(connectToServerRendering(
+      <div id="badIdWhichWillCauseMismatch"/>, element, false).firstChild);
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+
+// runs a DOM rendering test as four different tests, with six different rendering
+// scenarios:
+// -- render to string on server
+// -- render to stream on server
+// -- render on client without any server markup "clean client render"
+// -- render on client on top of good server-generated string markup
+// -- render on client on top of good server-generated stream markup
+// -- render on client on top of bad server-generated markup
+//
+// testFn is a test that has one arg, which is a render function. the render
+// function takes in a ReactElement and returns a promise of a DOM Element.
+//
+// Note that you should only perform tests that examine the DOM of the results of
+// render; you should not depend on the interactivity of the returned DOM element,
+// as that will not work in the server string scenario.
+function itRenders(desc, testFn) {
+  it(`${desc} with server string render`, promiseToJasmineTest(
+    () => testFn(serverStringRender)));
+  it(`${desc} with server stream render`, promiseToJasmineTest(
+    () => testFn(serverStreamRender)));
+  itClientRenders(desc, testFn);
+}
+
+// run testFn in four different rendering scenarios:
+// -- render on client without any server markup "clean client render"
+// -- render on client on top of good server-generated string markup
+// -- render on client on top of good server-generated stream markup
+// -- render on client on top of bad server-generated markup
+//
+// testFn takes in a render function and returns a Promise that resolves or rejects
+// when the test is done. the render function takes in a ReactElement and returns a
+// Promise of a DOM element.
+// Since all of the renders in this function are on the client, you can test interactivity,
+// unlike with itRenders.
+function itClientRenders(desc, testFn) {
+  it(`${desc} with clean client render`, promiseToJasmineTest(
+    () => testFn(clientRender)));
+  it(`${desc} with client render on top of server string markup`, promiseToJasmineTest(
+    () => testFn(clientRenderOnServerString)));
+  it(`${desc} with client render on top of server stream markup`, promiseToJasmineTest(
+    () => testFn(clientRenderOnServerStream)));
+  it(`${desc} with client render on top of bad server markup`, promiseToJasmineTest(
+    () => testFn(clientRenderOnBadMarkup)));
+}
+
+function itThrowsOnRender(desc, testFn) {
+  it(`${desc} with server string render`, failingPromiseToJasmineTest(
+    () => testFn(serverStringRender)));
+  it(`${desc} with server stream render`, failingPromiseToJasmineTest(
+    () => testFn(serverStreamRender)));
+  it(`${desc} with clean client render`, failingPromiseToJasmineTest(
+    () => testFn(clientRender)));
+  it(`${desc} with client render on top of bad server markup`, failingPromiseToJasmineTest(
+    () => testFn(clientRenderOnBadMarkup)));
+}
+
+
 describe('ReactServerRendering', function() {
   beforeEach(function() {
     jest.resetModuleRegistry();
@@ -325,7 +456,7 @@ describe('ReactServerRendering', function() {
       expect(numClicks).toEqual(2);
     });
 
-    it('should get initial state from getInitialState', function() {
+    itRenders('should get initial state from getInitialState', (render) => {
       const Component = React.createClass({
         getInitialState: function() {
           return {text: 'foo'};
@@ -334,101 +465,140 @@ describe('ReactServerRendering', function() {
           return <div>{this.state.text}</div>;
         },
       });
-      expect(getSsrDom(<Component/>).textContent).toBe('foo');
+      return render(<Component/>).then(e => expect(e.textContent).toBe('foo'));
+    });
+
+    describe('basic rendering', function() {
+      itRenders('should render a blank div', render =>
+        render(<div/>).then(e => expect(e.tagName.toLowerCase()).toBe('div')));
+      itRenders('should reconnect a div with inline styles', render =>
+        render(<div style={{color:'red', width:'30px'}}/>).then(e => {
+          expect(e.style.color).toBe('red');
+          expect(e.style.width).toBe('30px');
+        })
+      );
+      itRenders('should reconnect a self-closing tag', render =>
+        render(<br/>).then(e => expect(e.tagName.toLowerCase()).toBe('br')));
+      itRenders('should reconnect a self-closing tag as a child', render =>
+        render(<div><br/></div>).then(e => {
+          expect(e.childNodes.length).toBe(1);
+          expect(e.firstChild.tagName.toLowerCase()).toBe('br');
+        }));
     });
 
     describe('property to attribute mapping', function() {
-      it('renders simple numbers', function() {
-        expect(getSsrDom(<div width={30}/>).getAttribute('width')).toBe('30');
+      itRenders('renders simple numbers', (render) => {
+        return render(<div width={30}/>).then(e => expect(e.getAttribute('width')).toBe('30'));
       });
 
-      it('renders simple strings', function() {
-        expect(getSsrDom(<div width={"30"}/>).getAttribute('width')).toBe('30');
+      itRenders('renders simple strings', (render) => {
+        return render(<div width={"30"}/>).then(e => expect(e.getAttribute('width')).toBe('30'));
       });
 
-      it('renders booleans correctly', function() {
-        expect(getSsrDom(<div hidden={true}/>).getAttribute('hidden')).toBe('');
-        expect(getSsrDom(<div hidden/>).getAttribute('hidden')).toBe(''); // eslint-disable-line react/jsx-boolean-value
-        expect(getSsrDom(<div hidden="hidden"/>).getAttribute('hidden')).toBe('');
+      itRenders('renders booleans correctly', (render) => {
+        return Promise.all([
+          render(<div hidden={true}/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          /* eslint-disable react/jsx-boolean-value */
+          render(<div hidden/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          /* eslint-enable react/jsx-boolean-value */
+          render(<div hidden="hidden"/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
 
-        // I think this is not correct behavior, since hidden="" in HTML indicates
-        // that the boolean property is present. however, it is how the current code
-        // behaves, so the test is included here.
-        expect(getSsrDom(<div hidden=""/>).getAttribute('hidden')).toBe(null);
-        // I also disagree with the behavior of the next five tests; I think it's
-        // overly clever and masks what may be a programmer error. Ideally, it would
-        // warn and pass the value through.
-        expect(getSsrDom(<div hidden="foo"/>).getAttribute('hidden')).toBe('');
-        expect(getSsrDom(<div hidden={['foo', 'bar']}/>).getAttribute('hidden')).toBe('');
-        expect(getSsrDom(<div hidden={{foo:'bar'}}/>).getAttribute('hidden')).toBe('');
-        expect(getSsrDom(<div hidden={10}/>).getAttribute('hidden')).toBe('');
-        expect(getSsrDom(<div hidden={0}/>).getAttribute('hidden')).toBe(null);
+          // I think this is not correct behavior, since hidden="" in HTML indicates
+          // that the boolean property is present. however, it is how the current code
+          // behaves, so the test is included here.
+          render(<div hidden=""/>).then(e => expect(e.getAttribute('hidden')).toBe(null)),
+          // I also disagree with the behavior of the next five tests; I think it's
+          // overly clever and masks what may be a programmer error. Ideally, it would
+          // warn and pass the value through.
+          render(<div hidden="foo"/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          render(<div hidden={['foo', 'bar']}/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          render(<div hidden={{foo:'bar'}}/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          render(<div hidden={10}/>).then(e => expect(e.getAttribute('hidden')).toBe('')),
+          render(<div hidden={0}/>).then(e => expect(e.getAttribute('hidden')).toBe(null)),
 
-        expect(getSsrDom(<div hidden={false}/>).getAttribute('hidden')).toBe(null);
-        expect(getSsrDom(<div/>).getAttribute('hidden')).toBe(null);
+          render(<div hidden={false}/>).then(e => expect(e.getAttribute('hidden')).toBe(null)),
+          render(<div/>).then(e => expect(e.getAttribute('hidden')).toBe(null)),
+        ]);
       });
 
-      it('renders booleans as strings for string attributes', function() {
-        // I disagree with this behavior; I think it is undesirable and masks a
-        // probable programmer error. I'd prefer that {true} & {false} be rendered as
-        // they are for boolean attributes.
-        expect(getSsrDom(<a href={true}/>).getAttribute('href')).toBe('true');
-        expect(getSsrDom(<a href/>).getAttribute('href')).toBe('true');  // eslint-disable-line react/jsx-boolean-value
-        expect(getSsrDom(<a href={false}/>).getAttribute('href')).toBe('false');
+      itRenders('renders booleans as strings for string attributes', (render) => {
+        return Promise.all([
+          // I disagree with this behavior; I think it is undesirable and masks a
+          // probable programmer error. I'd prefer that {true} & {false} be rendered as
+          // they are for boolean attributes.
+          render(<a href={true}/>).then(e => expect(e.getAttribute('href')).toBe('true')),
+          /* eslint-disable react/jsx-boolean-value */
+          render(<a href/>).then(e => expect(e.getAttribute('href')).toBe('true')),
+          /* eslint-enable react/jsx-boolean-value */
+          render(<a href={false}/>).then(e => expect(e.getAttribute('href')).toBe('false')),
+        ]);
       });
 
-      it('handles download as a combined boolean/string attribute', function() {
-        expect(getSsrDom(<a download={true}/>).getAttribute('download')).toBe('');
-        /* eslint-disable react/jsx-boolean-value */
-        expect(getSsrDom(<a download/>).getAttribute('download')).toBe('');
-        /* eslint-enable react/jsx-boolean-value */
-        expect(getSsrDom(<a download={false}/>).getAttribute('download')).toBe(null);
-        expect(getSsrDom(<a download="myfile"/>).getAttribute('download')).toBe('myfile');
-        expect(getSsrDom(<a download={'true'}/>).getAttribute('download')).toBe('true');
+      itRenders('handles download as a combined boolean/string attribute', (render) => {
+        return Promise.all([
+          render(<a download={true}/>).then(e => expect(e.getAttribute('download')).toBe('')),
+          /* eslint-disable react/jsx-boolean-value */
+          render(<a download/>).then(e => expect(e.getAttribute('download')).toBe('')),
+          /* eslint-enable react/jsx-boolean-value */
+          render(<a download={false}/>).then(e => expect(e.getAttribute('download')).toBe(null)),
+          render(<a download="myfile"/>).then(e => expect(e.getAttribute('download')).toBe('myfile')),
+          render(<a download={'true'}/>).then(e => expect(e.getAttribute('download')).toBe('true')),
+        ]);
       });
 
-      it('renders className and htmlFor correctly', function() {
-        expect(getSsrDom(<div/>).getAttribute('class')).toBe(null);
-        expect(getSsrDom(<div className="myClassName"/>).getAttribute('class')).toBe('myClassName');
-        expect(getSsrDom(<div className=""/>).getAttribute('class')).toBe('');
-        // I disagree with the behavior of the next three tests; I think that a boolean value should
-        // warn, and not transform the value. These tests express current behavior.
-        expect(getSsrDom(<div className={true}/>).getAttribute('class')).toBe('true');
-        /* eslint-disable react/jsx-boolean-value */
-        expect(getSsrDom(<div className/>).getAttribute('class')).toBe('true');
-        /* eslint-enable react/jsx-boolean-value */
-        expect(getSsrDom(<div className={false}/>).getAttribute('class')).toBe('false');
+      itRenders('renders className and htmlFor correctly', (render) => {
+        return Promise.all([
+          render(<div/>).then(e => expect(e.getAttribute('class')).toBe(null)),
+          render(<div className="myClassName"/>).then(e => expect(e.getAttribute('class')).toBe('myClassName')),
+          render(<div className=""/>).then(e => expect(e.getAttribute('class')).toBe('')),
+          // I disagree with the behavior of the next three tests; I think that a boolean value should
+          // warn, and not transform the value. These tests express current behavior.
+          render(<div className={true}/>).then(e => expect(e.getAttribute('class')).toBe('true')),
+          /* eslint-disable react/jsx-boolean-value */
+          render(<div className/>).then(e => expect(e.getAttribute('class')).toBe('true')),
+          /* eslint-enable react/jsx-boolean-value */
+          render(<div className={false}/>).then(e => expect(e.getAttribute('class')).toBe('false')),
 
-        expect(getSsrDom(<div/>).getAttribute('for')).toBe(null);
-        expect(getSsrDom(<div htmlFor="myFor"/>).getAttribute('for')).toBe('myFor');
-        expect(getSsrDom(<div htmlFor=""/>).getAttribute('for')).toBe('');
-        // I disagree with the behavior of the next three tests; I think that a boolean value should
-        // warn, and not transform the value. These tests express current behavior.
-        expect(getSsrDom(<div htmlFor={true}/>).getAttribute('for')).toBe('true');
-        /* eslint-disable react/jsx-boolean-value */
-        expect(getSsrDom(<div htmlFor/>).getAttribute('for')).toBe('true');
-        /* eslint-enable react/jsx-boolean-value */
-        expect(getSsrDom(<div htmlFor={false}/>).getAttribute('for')).toBe('false');
+          render(<div/>).then(e => expect(e.getAttribute('for')).toBe(null)),
+          render(<div htmlFor="myFor"/>).then(e => expect(e.getAttribute('for')).toBe('myFor')),
+          render(<div htmlFor=""/>).then(e => expect(e.getAttribute('for')).toBe('')),
+          // I disagree with the behavior of the next three tests; I think that a boolean value should
+          // warn, and not transform the value. These tests express current behavior.
+          render(<div htmlFor={true}/>).then(e => expect(e.getAttribute('for')).toBe('true')),
+          /* eslint-disable react/jsx-boolean-value */
+          render(<div htmlFor/>).then(e => expect(e.getAttribute('for')).toBe('true')),
+          /* eslint-enable react/jsx-boolean-value */
+          render(<div htmlFor={false}/>).then(e => expect(e.getAttribute('for')).toBe('false')),
+        ]);
       });
 
-      it('does not render key, children, ref, or dangerouslySetInnerHTML as attributes', function() {
-        expect(getSsrDom(<div key="foo"/>).getAttribute('key')).toBe(null);
-        expect(getSsrDom(React.createElement('div', {}, 'foo')).getAttribute('children')).toBe(null);
-        expect(getSsrDom(<div ref="foo"/>).getAttribute('ref')).toBe(null);
-        expect(getSsrDom(<div dangerouslySetInnerHTML={{__html:'foo'}}/>).getAttribute('dangerouslySetInnerHTML'))
-          .toBe(null);
+      itRenders('does not render key, children, ref, or dangerouslySetInnerHTML as attributes', (render) => {
+        class RefComponent extends React.Component {
+          render() {
+            return <div ref="foo"/>;
+          }
+        }
+        return Promise.all([
+          render(<RefComponent/>).then(e => expect(e.getAttribute('ref')).toBe(null)),
+          render(<div key="foo"/>).then(e => expect(e.getAttribute('key')).toBe(null)),
+          render(React.createElement('div', {}, 'foo')).then(e => expect(e.getAttribute('children')).toBe(null)),
+          render(<div dangerouslySetInnerHTML={{__html:'foo'}}/>)
+            .then(e => expect(e.getAttribute('dangerouslySetInnerHTML')).toBe(null)),
+        ]);
       });
 
-      it('does not render unknown attributes', function() {
-        expect(getSsrDom(<div foo="bar"/>).getAttribute('foo')).toBe(null);
+      itRenders('does not render unknown attributes', (render) => {
+        return render(<div foo="bar"/>).then(e => expect(e.getAttribute('foo')).toBe(null));
       });
 
-      it('does not render HTML events', function() {
-        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('onClick')).toBe(null);
-        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('onclick')).toBe(null);
-        expect(getSsrDom(<div onClick={() => {}}/>).getAttribute('click')).toBe(null);
-        expect(getSsrDom(<div onKeyDown={() => {}}/>).getAttribute('onKeyDown')).toBe(null);
-        expect(getSsrDom(<div onCustomEvent={() => {}}/>).getAttribute('onCustomEvent')).toBe(null);
+      itRenders('does not render HTML events', (render) => {
+        return Promise.all([
+          render(<div onClick={() => {}}/>).then(e => expect(e.getAttribute('onClick')).toBe(null)),
+          render(<div onClick={() => {}}/>).then(e => expect(e.getAttribute('onclick')).toBe(null)),
+          render(<div onClick={() => {}}/>).then(e => expect(e.getAttribute('click')).toBe(null)),
+          render(<div onKeyDown={() => {}}/>).then(e => expect(e.getAttribute('onKeyDown')).toBe(null)),
+          render(<div onCustomEvent={() => {}}/>).then(e => expect(e.getAttribute('onCustomEvent')).toBe(null)),
+        ]);
       });
     });
 
@@ -452,91 +622,116 @@ describe('ReactServerRendering', function() {
         expectNode(node, COMMENT_NODE_TYPE, ' react-empty ');
       }
 
-      it('renders a number as single child', () => expect(getSsrDom(<div>{3}</div>).textContent).toBe('3'));
+      itRenders('renders a number as single child',
+        render => render(<div>{3}</div>).then(e => expect(e.textContent).toBe('3')));
       // zero is falsey, so it could look like no children if the code isn't careful.
-      it('renders zero as single child', () => expect(getSsrDom(<div>{0}</div>).textContent).toBe('0'));
-      it('renders null single child as blank',
-        () => expect(getSsrDom(<div>{null}</div>).childNodes.length).toBe(0));
-      it('renders false single child as blank',
-        () => expect(getSsrDom(<div>{false}</div>).childNodes.length).toBe(0));
-      it('renders undefined single child as blank',
-        () => expect(getSsrDom(<div>{undefined}</div>).childNodes.length).toBe(0));
+      itRenders('renders zero as single child',
+        render => render(<div>{0}</div>).then(e => expect(e.textContent).toBe('0')));
+      itRenders('renders null single child as blank',
+        render => render(<div>{null}</div>).then(e => expect(e.childNodes.length).toBe(0)));
+      itRenders('renders false single child as blank',
+        render => render(<div>{false}</div>).then(e => expect(e.childNodes.length).toBe(0)));
+      itRenders('renders undefined single child as blank',
+        render => render(<div>{undefined}</div>).then(e => expect(e.childNodes.length).toBe(0)));
 
-      it('renders a null component as empty', function() {
+      itRenders('renders a null component as empty', (render) => {
         const NullComponent = () => null;
-        expectEmptyNode(getSsrDom(<NullComponent/>));
+        return render(<NullComponent/>).then(e => expectEmptyNode(e));
       });
 
-      it('renders a false component as empty', () => {
+      itRenders('renders a false component as empty', (render) => {
         const FalseComponent = () => false;
-        expectEmptyNode(getSsrDom(<FalseComponent />));
+        return render(<FalseComponent />).then(e => expectEmptyNode(e));
       });
 
-      it('throws rendering a string component', () => {
+      itThrowsOnRender('throws rendering a string component', (render) => {
         const StringComponent = () => 'foo';
-        expect(() => getSsrDom(<StringComponent/>)).toThrow();
+        return render(<StringComponent/>);
       });
 
-      it('throws rendering an undefined component', () => {
+      itThrowsOnRender('throws rendering an undefined component', (render) => {
         const UndefinedComponent = () => undefined;
-        expect(() => getSsrDom(<UndefinedComponent/>)).toThrow();
+        return render(<UndefinedComponent/>);
       });
 
-      it('throws rendering a number component', () => {
+      itThrowsOnRender('throws rendering a number component', (render) => {
         const NumberComponent = () => 54;
-        expect(() => getSsrDom(<NumberComponent/>)).toThrow();
+        return render(<NumberComponent/>);
       });
 
-      it('renders null and false children as blank', function() {
-        const element1 = getSsrDom(<div>{null}foo</div>);
-        expect(element1.childNodes.length).toBe(3);
-        expectTextNode(element1.childNodes[0], 'foo');
-
-        const element2 = getSsrDom(<div>{false}foo</div>);
-        expect(element2.childNodes.length).toBe(3);
-        expectTextNode(element2.childNodes[0], 'foo');
-
-        const element3 = getSsrDom(<div>{false}{null}foo{null}{false}</div>);
-        expect(element3.childNodes.length).toBe(3);
-        expectTextNode(element3.childNodes[0], 'foo');
-
-        const element4 = getSsrDom(<div>{false}{null}{null}{false}</div>);
-        expect(element4.childNodes.length).toBe(0);
+      itRenders('renders null children as blank', (render) => {
+        return render(<div>{null}foo</div>).then(e => {
+          expect(e.childNodes.length).toBe(3);
+          expectTextNode(e.childNodes[0], 'foo');
+        });
       });
 
-      it('renders blank children with comments when there are multiple children', function() {
-        const element1 = getSsrDom(<div>{''}foo</div>);
-        expect(element1.childNodes.length).toBe(5);
-        expectTextNode(element1.childNodes[0], '');
-        expectTextNode(element1.childNodes[2], 'foo');
-
-        const element2 = getSsrDom(<div>foo{''}</div>);
-        expect(element2.childNodes.length).toBe(5);
-        expectTextNode(element2.childNodes[0], 'foo');
-        expectTextNode(element2.childNodes[3], '');
+      itRenders('renders false children as blank', (render) => {
+        return render(<div>{false}foo</div>).then(e => {
+          expect(e.childNodes.length).toBe(3);
+          expectTextNode(e.childNodes[0], 'foo');
+        });
       });
 
-      it('renders an element with just one text child without comments', function() {
-        const element = getSsrDom(<div>foo</div>);
-        expect(element.childNodes.length).toBe(1);
-        expectNode(element.firstChild, TEXT_NODE_TYPE, 'foo');
+      itRenders('renders null and false children together as blank', (render) => {
+        return render(<div>{false}{null}foo{null}{false}</div>).then(e => {
+          expect(e.childNodes.length).toBe(3);
+          expectTextNode(e.childNodes[0], 'foo');
+        });
       });
 
-      it('renders an element with two text children with comments', function() {
-        const element = getSsrDom(<div>{'foo'}{'bar'}</div>);
-        expect(element.childNodes.length).toBe(6);
-        expectTextNode(element.childNodes[0], 'foo');
-        expectTextNode(element.childNodes[3], 'bar');
+      itRenders('renders only null and false children as blank', (render) => {
+        return render(<div>{false}{null}{null}{false}</div>).then(e => {
+          expect(e.childNodes.length).toBe(0);
+        });
       });
 
-      it('renders an element with number and text children with comments', function() {
-        const element = getSsrDom(<div>{'foo'}{40}</div>);
-        expect(element.childNodes.length).toBe(6);
-        expectTextNode(element.childNodes[0], 'foo');
-        expectTextNode(element.childNodes[3], '40');
+      itRenders('renders leading blank children with comments when there are multiple children', (render) => {
+        return render(<div>{''}foo</div>).then(e => {
+          expect(e.childNodes.length).toBe(5);
+          expectTextNode(e.childNodes[0], '');
+          expectTextNode(e.childNodes[2], 'foo');
+        });
       });
 
-      it('renders stateless, React.createClass, class, and factory components', function() {
+      itRenders('renders trailing blank children with comments when there are multiple children', (render) => {
+        return render(<div>foo{''}</div>).then(e => {
+          expect(e.childNodes.length).toBe(5);
+          expectTextNode(e.childNodes[0], 'foo');
+          expectTextNode(e.childNodes[3], '');
+        });
+      });
+
+      itRenders('renders an element with just one text child without comments', (render) => {
+        return render(<div>foo</div>).then(e => {
+          expect(e.childNodes.length).toBe(1);
+          expectNode(e.firstChild, TEXT_NODE_TYPE, 'foo');
+        });
+      });
+
+      itRenders('renders an element with two text children with comments', (render) => {
+        return render(<div>{'foo'}{'bar'}</div>).then(e => {
+          expect(e.childNodes.length).toBe(6);
+          expectTextNode(e.childNodes[0], 'foo');
+          expectTextNode(e.childNodes[3], 'bar');
+        });
+      });
+
+      itRenders('renders an element with number and text children with comments', (render) => {
+        return render(<div>{'foo'}{40}</div>).then(e => {
+          expect(e.childNodes.length).toBe(6);
+          expectTextNode(e.childNodes[0], 'foo');
+          expectTextNode(e.childNodes[3], '40');
+        });
+      });
+      itRenders('renders a newline-eating tag with content not starting with \\n',
+        render => render(<pre>Hello</pre>).then(e => expect(e.textContent).toBe('Hello')));
+      itRenders('renders a newline-eating tag with content starting with \\n',
+        render => render(<pre>{"\nHello"}</pre>).then(e => expect(e.textContent).toBe('\nHello')));
+      itRenders('renders a normal tag with content starting with \\n',
+        render => render(<div>{"\nHello"}</div>).then(e => expect(e.textContent).toBe('\nHello')));
+
+      itRenders('renders stateless, React.createClass, class, and factory components', (render) => {
         const StatelessComponent = () => <div>foo</div>;
         const RccComponent = React.createClass({
           render: function() {
@@ -555,46 +750,46 @@ describe('ReactServerRendering', function() {
             },
           };
         };
-
-        [StatelessComponent, RccComponent, ClassComponent, FactoryComponent].forEach((Component) => {
-          const element = getSsrDom(<Component/>);
-          expect(element.childNodes.length).toBe(1);
-          expectNode(element.firstChild, TEXT_NODE_TYPE, 'foo');
-        });
-      });
-
-      it('escapes >,<, and & as single child', () => {
-        // we use markup (which is more brittle) here rather than DOM because rendering in to a
-        // document can unintentionally fix up incorrectly escaped text
-        const markup = ReactServerRendering.renderToString(<div>{'<>&'}</div>);
-        expect(markup).toBe('<div data-reactroot="">&lt;&gt;&amp;</div>');
-      });
-
-      it('escapes >,<, and & as multiple child', () => {
-        // we use markup (which is more brittle) here rather than DOM because rendering in to a
-        // document can unintentionally fix up incorrectly escaped text
-        const markup = ReactServerRendering.renderToString(<div>{'<>&'}{'&<>'}</div>);
-        expect(markup).toBe(
-          '<div data-reactroot="">' +
-          '<!-- react-text -->&lt;&gt;&amp;<!-- /react-text -->' +
-          '<!-- react-text -->&amp;&lt;&gt;<!-- /react-text -->' +
-          '</div>'
+        return Promise.all(
+          [StatelessComponent, RccComponent, ClassComponent, FactoryComponent].map((Component) => {
+            return render(<Component/>).then(e => {
+              expect(e.childNodes.length).toBe(1);
+              expectNode(e.firstChild, TEXT_NODE_TYPE, 'foo');
+            });
+          })
         );
       });
 
-      it('throws when rendering null', () => expect(() => getSsrDom(null)).toThrow());
-      it('throws when rendering false', () => expect(() => getSsrDom(false)).toThrow());
-      it('throws when rendering undefined', () => expect(() => getSsrDom(undefined)).toThrow());
-      it('throws when rendering number', () => expect(() => getSsrDom(30)).toThrow());
-      it('throws when rendering string', () => expect(() => getSsrDom('foo')).toThrow());
+      itRenders('escapes >,<, and & as single child', render => {
+        return render(<div>{'<span>Text&quot;</span>'}</div>).then(e => {
+          expect(e.childNodes.length).toBe(1);
+          expectNode(e.firstChild, TEXT_NODE_TYPE, '<span>Text&quot;</span>');
+        });
+      });
+
+      itRenders('escapes >,<, and & as multiple children', render => {
+        return render(<div>{'<span>Text1&quot;</span>'}{'<span>Text2&quot;</span>'}</div>).then(e => {
+          expect(e.childNodes.length).toBe(6);
+          expectTextNode(e.childNodes[0], '<span>Text1&quot;</span>');
+          expectTextNode(e.childNodes[3], '<span>Text2&quot;</span>');
+        });
+      });
+
+      itThrowsOnRender('throws when rendering null', render => render(null));
+      itThrowsOnRender('throws when rendering false', render => render(false));
+      itThrowsOnRender('throws when rendering undefined', render => render(undefined));
+      itThrowsOnRender('throws when rendering number', render => render(30));
+      itThrowsOnRender('throws when rendering string', render => render('foo'));
     });
 
     describe('form controls', function() {
       // simple inputs
       // -------------
-      it('can render an input with a value', () => {
-        expect(getSsrDom(<input value="foo" onChange={() => {}}/>).getAttribute('value')).toBe('foo');
-        expect(getSsrDom(<input value="foo" readOnly={true}/>).getAttribute('value')).toBe('foo');
+      itRenders('can render an input with a value', (render) => {
+        return Promise.all([
+          render(<input value="foo" onChange={() => {}}/>).then(e => expect(e.getAttribute('value')).toBe('foo')),
+          render(<input value="foo" readOnly={true}/>).then(e => expect(e.getAttribute('value')).toBe('foo')),
+        ]);
       });
 
       it('can render an input with a value and no onChange/readOnly', function() {
@@ -602,10 +797,11 @@ describe('ReactServerRendering', function() {
         expect(element.getAttribute('value')).toBe('foo');
       });
 
-      it('can render an input with a defaultValue', function() {
-        const element = getSsrDom(<input defaultValue="foo"/>);
-        expect(element.getAttribute('value')).toBe('foo');
-        expect(element.getAttribute('defaultValue')).toBe(null);
+      itRenders('can render an input with a defaultValue', (render) => {
+        return render(<input defaultValue="foo"/>).then(e => {
+          expect(e.getAttribute('value')).toBe('foo');
+          expect(e.getAttribute('defaultValue')).toBe(null);
+        });
       });
 
       it('can render an input with both a value and defaultValue part 1', () => {
@@ -622,9 +818,13 @@ describe('ReactServerRendering', function() {
 
       // checkboxes
       // ----------
-      it('can render a checkbox that is checked', () => {
-        expect(getSsrDom(<input type="checkbox" checked={true} onChange={() => {}}/>).getAttribute('checked')).toBe('');
-        expect(getSsrDom(<input type="checkbox" checked={true} readOnly={true}/>).getAttribute('checked')).toBe('');
+      itRenders('can render a checkbox that is checked', (render) => {
+        return Promise.all([
+          render(<input type="checkbox" checked={true} onChange={() => {}}/>)
+            .then(e => expect(e.getAttribute('checked')).toBe('')),
+          render(<input type="checkbox" checked={true} readOnly={true}/>)
+            .then(e => expect(e.getAttribute('checked')).toBe('')),
+        ]);
       });
 
       it('can render a checkbox that is checked and no onChange/readOnly', function() {
@@ -632,10 +832,11 @@ describe('ReactServerRendering', function() {
         expect(element.getAttribute('checked')).toBe('');
       });
 
-      it('can render a checkbox with defaultChecked', function() {
-        const element = getSsrDom(<input type="checkbox" defaultChecked={true}/>);
-        expect(element.getAttribute('checked')).toBe('');
-        expect(element.getAttribute('defaultChecked')).toBe(null);
+      itRenders('can render a checkbox with defaultChecked', (render) => {
+        return render(<input type="checkbox" defaultChecked={true}/>).then(e => {
+          expect(e.getAttribute('checked')).toBe('');
+          expect(e.getAttribute('defaultChecked')).toBe(null);
+        });
       });
 
       it('can render a checkbox with both a checked and defaultChecked part 1', () => {
@@ -654,13 +855,17 @@ describe('ReactServerRendering', function() {
 
       // textareas
       // ---------
-      it('can render a textarea with a value', () => {
-        const element1 = getSsrDom(<textarea value="foo" onChange={() => {}}/>);
-        expect(element1.getAttribute('value')).toBe(null);
-        expect(element1.value).toBe('foo');
-        const element2 = getSsrDom(<textarea value="foo" readOnly={true}/>);
-        expect(element2.getAttribute('value')).toBe(null);
-        expect(element2.value).toBe('foo');
+      itRenders('can render a textarea with a value', (render) => {
+        return Promise.all([
+          render(<textarea value="foo" onChange={() => {}}/>).then(e => {
+            expect(e.getAttribute('value')).toBe(null);
+            expect(e.value).toBe('foo');
+          }),
+          render(<textarea value="foo" readOnly={true}/>).then(e => {
+            expect(e.getAttribute('value')).toBe(null);
+            expect(e.value).toBe('foo');
+          }),
+        ]);
       });
 
       it('can render a textarea with a value and no onChange/readOnly', function() {
@@ -669,11 +874,12 @@ describe('ReactServerRendering', function() {
         expect(element.value).toBe('foo');
       });
 
-      it('can render a textarea with a defaultValue', function() {
-        const element = getSsrDom(<textarea defaultValue="foo"/>);
-        expect(element.getAttribute('value')).toBe(null);
-        expect(element.getAttribute('defaultValue')).toBe(null);
-        expect(element.value).toBe('foo');
+      itRenders('can render a textarea with a defaultValue', (render) => {
+        return render(<textarea defaultValue="foo"/>).then(e => {
+          expect(e.getAttribute('value')).toBe(null);
+          expect(e.getAttribute('defaultValue')).toBe(null);
+          expect(e.value).toBe('foo');
+        });
       });
 
       it('can render a textarea with both a value and defaultValue part 1', () => {
@@ -711,19 +917,16 @@ describe('ReactServerRendering', function() {
           expect(element.querySelector(`#${value}`).getAttribute('selected')).toBe(selectedValue);
         });
       };
-      it('can render a select with a value', () => {
-        const element1 = getSsrDom(<select value="bar" onChange={() => {}}>{options}</select>);
-        expectSelectValue(element1, ['bar']);
-
-        const element2 = getSsrDom(<select value="bar" readOnly={true}>{options}</select>);
-        expectSelectValue(element2, ['bar']);
-
-        const element3 = getSsrDom(<select>{options}</select>);
-        expectSelectValue(element3, []);
-
-        const element4 = getSsrDom(
-          <select value={['bar', 'baz']} multiple={true} readOnly={true}>{options}</select>);
-        expectSelectValue(element4, ['bar', 'baz']);
+      itRenders('can render a select with a value', (render) => {
+        return Promise.all([
+          render(<select value="bar" onChange={() => {}}>{options}</select>)
+            .then(e => expectSelectValue(e, ['bar'])),
+          render(<select value="bar" readOnly={true}>{options}</select>)
+            .then(e => expectSelectValue(e, ['bar'])),
+          render(<select>{options}</select>).then(e => expectSelectValue(e, [])),
+          render(<select value={['bar', 'baz']} multiple={true} readOnly={true}>{options}</select>)
+            .then(e => expectSelectValue(e, ['bar', 'baz'])),
+        ]);
       });
 
       it('can render a select with a value and no onChange/readOnly', function() {
@@ -731,9 +934,9 @@ describe('ReactServerRendering', function() {
         expectSelectValue(element, ['bar']);
       });
 
-      it('can render a select with a defaultValue', function() {
-        const element = getSsrDom(<select defaultValue="bar">{options}</select>);
-        expectSelectValue(element, ['bar']);
+      itRenders('can render a select with a defaultValue', (render) => {
+        return render(<select defaultValue="bar">{options}</select>)
+          .then(e => expectSelectValue(e, ['bar']));
       });
 
       it('can render a select with both a value and defaultValue part 1', () => {
@@ -748,11 +951,125 @@ describe('ReactServerRendering', function() {
         expectSelectValue(element, ['bar']);
       });
 
+      // Controlled inputs on the client
+      const getControlledFieldClass = (initialValue, onChange = () => {}, TagName = 'input',
+        valueKey = 'value', extraProps = {}, children = null) => {
+        return class ControlledField extends React.Component {
+          constructor() {
+            super();
+            this.state = {[valueKey]: initialValue};
+          }
+          handleChange(event) {
+            onChange(event);
+            this.setState({[valueKey]: event.target[valueKey]});
+          }
+          render() {
+            return (<TagName type="text"
+              {...{[valueKey]: this.state[valueKey]}}
+              onChange={this.handleChange.bind(this)}
+              {...extraProps}>{children}</TagName>);
+          }
+        };
+      };
+
+      const testControlledField = (render, initialValue, changedValue, TagName = 'input',
+        valueKey = 'value', extraProps = {}, children = null) => {
+
+        let changeCount = 0;
+        const ControlledField = getControlledFieldClass(
+          initialValue, () => changeCount++, TagName, valueKey, extraProps, children
+        );
+
+        return render(<ControlledField/>).then(e => {
+          expect(changeCount).toBe(0);
+          expect(e[valueKey]).toBe(initialValue);
+
+          // simulate a user typing.
+          e[valueKey] = changedValue;
+          ReactTestUtils.Simulate.change(e);
+
+          expect(changeCount).toBe(1);
+          expect(e[valueKey]).toBe(changedValue);
+        });
+      };
+
+      itClientRenders('should render a controlled text input',
+        render => testControlledField(render, 'Hello', 'Goodbye'));
+
+      itClientRenders('should render a controlled textarea',
+        render => testControlledField(render, 'Hello', 'Goodbye', 'textarea'));
+
+      itClientRenders('should render a controlled checkbox',
+        render => testControlledField(render, true, false, 'input', 'checked', {type:'checkbox'}));
+
+      itClientRenders('should render a controlled select',
+        render => testControlledField(render, 'B', 'A', 'select', 'value', {},
+          [
+            <option key="1" value="A">Option A</option>,
+            <option key="2" value="B">Option B</option>,
+          ]));
+      // User interaction before client markup reconnect
+      const testFieldWithUserInteractionBeforeClientRender = (
+        element, initialValue = 'foo', changedValue = 'bar', valueKey = 'value'
+      ) => {
+        const root = renderOnServer(element);
+        const field = root.firstChild;
+        expect(field[valueKey]).toBe(initialValue);
+
+        // simulate a user typing in the field **before** client-side reconnect happens.
+        field[valueKey] = changedValue;
+
+        // reconnect to the server markup.
+        renderOnClient(element, root);
+
+        // verify that the input field was not replaced.
+        expect(root.firstChild).toBe(field);
+        expect(field[valueKey]).toBe(changedValue);
+      };
+
+      it('should not blow away user-entered text on successful reconnect to an uncontrolled input', () => {
+        testFieldWithUserInteractionBeforeClientRender(<input defaultValue="foo"/>, 'foo', 'bar');
+      });
+
+      it('should not blow away user-entered text on successful reconnect to an controlled input', () => {
+        let changeCount = 0;
+        const Component = getControlledFieldClass('foo', () => changeCount++);
+        testFieldWithUserInteractionBeforeClientRender(<Component/>, 'foo', 'bar');
+        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
+        expect(changeCount).toBe(0);
+      });
+
+      it('should not blow away user-entered text on successful reconnect to an uncontrolled checkbox', () => {
+        testFieldWithUserInteractionBeforeClientRender(
+          <input type="checkbox" defaultChecked={true}/>, true, false, 'checked'
+        );
+      });
+
+      it('should not blow away user-entered text on successful reconnect to an controlled checkbox', () => {
+        let changeCount = 0;
+        const Component = getControlledFieldClass(true, () => changeCount++, 'input', 'checked', {type: 'checkbox'});
+        testFieldWithUserInteractionBeforeClientRender(<Component/>, true, false, 'checked');
+        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
+        expect(changeCount).toBe(0);
+      });
+
+      it('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () => {
+        testFieldWithUserInteractionBeforeClientRender(<textarea defaultValue="foo"/>, 'foo', 'bar', 'textContent');
+      });
+
+      it('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () => {
+        let changeCount = 0;
+        const Component = getControlledFieldClass('foo', () => changeCount++, 'textarea', 'value');
+        testFieldWithUserInteractionBeforeClientRender(<Component/>, 'foo', 'bar', 'textContent');
+        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
+        expect(changeCount).toBe(0);
+      });
+
     });
 
 
     describe('context', function() {
-      it('can render context', function() {
+      itRenders('can render context', (render) => {
         class ClassChildWithContext extends React.Component {
             render() {
               return <div id="classChild">{this.context.text}</div>;
@@ -809,16 +1126,17 @@ describe('ReactServerRendering', function() {
         }
         Parent.childContextTypes = {text: React.PropTypes.string };
 
-        const element = getSsrDom(<Parent/>);
-        expect(element.querySelector('#classChild').textContent).toBe('purple');
-        expect(element.querySelector('#statelessChild').textContent).toBe('purple');
-        expect(element.querySelector('#classWoChild').textContent).toBe('');
-        expect(element.querySelector('#statelessWoChild').textContent).toBe('');
-        expect(element.querySelector('#classWrongChild').textContent).toBe('');
-        expect(element.querySelector('#statelessWrongChild').textContent).toBe('');
+        return render(<Parent/>).then(e => {
+          expect(e.querySelector('#classChild').textContent).toBe('purple');
+          expect(e.querySelector('#statelessChild').textContent).toBe('purple');
+          expect(e.querySelector('#classWoChild').textContent).toBe('');
+          expect(e.querySelector('#statelessWoChild').textContent).toBe('');
+          expect(e.querySelector('#classWrongChild').textContent).toBe('');
+          expect(e.querySelector('#statelessWrongChild').textContent).toBe('');
+        });
       });
 
-      it('can pass context through to a grandchild', function() {
+      itRenders('can pass context through to a grandchild', (render) => {
         class ClassGrandchild extends React.Component {
           render() {
             return <div id="classGrandchild">{this.context.text}</div>;
@@ -853,13 +1171,14 @@ describe('ReactServerRendering', function() {
         }
         Parent.childContextTypes = {text: React.PropTypes.string };
 
-        const element = getSsrDom(<Parent/>);
-        expect(element.querySelector('#childContext').textContent).toBe('');
-        expect(element.querySelector('#statelessGrandchild').textContent).toBe('purple');
-        expect(element.querySelector('#classGrandchild').textContent).toBe('purple');
+        return render(<Parent/>).then(e => {
+          expect(e.querySelector('#childContext').textContent).toBe('');
+          expect(e.querySelector('#statelessGrandchild').textContent).toBe('purple');
+          expect(e.querySelector('#classGrandchild').textContent).toBe('purple');
+        });
       });
 
-      it('should let a child context override a parent context', function() {
+      itRenders('should let a child context override a parent context', (render) => {
         class Parent extends React.Component {
           getChildContext() {
             return {text: 'purple'};
@@ -885,10 +1204,10 @@ describe('ReactServerRendering', function() {
         };
         Grandchild.contextTypes = {text: React.PropTypes.string};
 
-        expect(getSsrDom(<Parent/>).textContent).toBe('red');
+        return render(<Parent/>).then(e => expect(e.textContent).toBe('red'));
       });
 
-      it('should merge a child context with a parent context', function() {
+      itRenders('should merge a child context with a parent context', (render) => {
         class Parent extends React.Component {
           getChildContext() {
             return {text1: 'purple'};
@@ -914,12 +1233,13 @@ describe('ReactServerRendering', function() {
         };
         Grandchild.contextTypes = {text1: React.PropTypes.string, text2: React.PropTypes.string};
 
-        const element = getSsrDom(<Parent/>);
-        expect(element.querySelector('#first').textContent).toBe('purple');
-        expect(element.querySelector('#second').textContent).toBe('red');
+        return render(<Parent/>).then(e => {
+          expect(e.querySelector('#first').textContent).toBe('purple');
+          expect(e.querySelector('#second').textContent).toBe('red');
+        });
       });
 
-      it('should run componentWillMount before getChildContext', function() {
+      itRenders('should run componentWillMount before getChildContext', (render) => {
         class Parent extends React.Component {
           getChildContext() {
             return {text: this.state.text};
@@ -938,11 +1258,11 @@ describe('ReactServerRendering', function() {
         };
         Child.contextTypes = {text: React.PropTypes.string};
 
-        expect(getSsrDom(<Parent/>).textContent).toBe('foo');
+        return render(<Parent/>).then(e => expect(e.textContent).toBe('foo'));
       });
 
 
-      it('throws if getChildContext exists without childContextTypes', function() {
+      itThrowsOnRender('throws if getChildContext exists without childContextTypes', render => {
         class Component extends React.Component {
           render() {
             return <div/>;
@@ -951,10 +1271,10 @@ describe('ReactServerRendering', function() {
             return {foo: 'bar'};
           }
         }
-        expect(() => getSsrDom(<Component/>)).toThrow();
+        return render(<Component/>);
       });
 
-      it('throws if getChildContext returns a value not in childContextTypes', function() {
+      itThrowsOnRender('throws if getChildContext returns a value not in childContextTypes', render => {
         class Component extends React.Component {
           render() {
             return <div/>;
@@ -964,7 +1284,7 @@ describe('ReactServerRendering', function() {
           }
         }
         Component.childContextTypes = {value1: React.PropTypes.string};
-        expect(() => getSsrDom(<Component/>)).toThrow();
+        return render(<Component/>);
       });
 
       // TODO: warn about context types in DEV mode?
@@ -982,16 +1302,8 @@ describe('ReactServerRendering', function() {
       });
 
       // Markup Matches: basic
-      it('should reconnect a blank div', () => expectMarkupMatch(<div/>));
-      it('should reconnect a div with an attribute', () => expectMarkupMatch(<div width="30"/>));
-      it('should reconnect a div with a boolean attribute', () => expectMarkupMatch(<div disabled={true}/>));
       it('should reconnect a div with attributes in different order', () =>
         expectMarkupMatch(<div width="30" height="40"/>, <div height="40" width="30"/>));
-      it('should reconnect a div with an class', () => expectMarkupMatch(<div className="myClass"/>));
-      it('should reconnect a div with inline styles',
-        () => expectMarkupMatch(<div style={{color:'red', width:'30px'}}/>));
-      it('should reconnect a self-closing tag', () => expectMarkupMatch(<br/>));
-      it('should reconnect a self-closing tag as a child', () => expectMarkupMatch(<div><br/></div>));
 
       // Markup Matches: components
       it('should reconnect different component types', () => {
@@ -1140,7 +1452,7 @@ describe('ReactServerRendering', function() {
 
       // Markup Matches: namespaces
       it('should reconnect an svg element', () => expectMarkupMatch(<svg/>));
-      xit('should reconnect an svg element with an xlink',
+      it('should reconnect an svg element with an xlink',
         () => expectMarkupMatch(<svg><image xlinkHref="http://i.imgur.com/w7GCRPb.png"/></svg>));
       it('should reconnect a math element', () => expectMarkupMatch(<math/>));
 
@@ -1162,16 +1474,6 @@ describe('ReactServerRendering', function() {
         expectMarkupMatch(<Component1/>, <Component2/>);
         expectMarkupMatch(<div><Component1/></div>, <div><Component2/></div>);
       });
-      it('should reconnect a newline-eating tag with content not starting with \\n',
-        () => {
-          const root = expectMarkupMatch(<pre>Hello</pre>);
-          expect(root.textContent).toBe('Hello');
-        });
-      it('should reconnect a newline-eating tag with content not starting with \\n',
-        () => {
-          const root = expectMarkupMatch(<pre>{"\nHello"}</pre>);
-          expect(root.textContent).toBe('\nHello');
-        });
 
       // Markup Mismatches: basic
       it('should error reconnecting different element types', () => expectMarkupMismatch(<div/>, <span/>));
@@ -1230,36 +1532,13 @@ describe('ReactServerRendering', function() {
         ));
 
       // Events after reconnecting
-      it('should have working events after reconnecting markup', () => {
+      itClientRenders('should have working events', render => {
         let clickCount = 0;
-        const root = expectMarkupMatch(<div><button onClick={() => clickCount++}/></div>);
-        expect(clickCount).toBe(0);
-        ReactTestUtils.Simulate.click(root.querySelector('button'));
-        expect(clickCount).toBe(1);
-      });
-
-      it('should have working events after a markup mismatch', () => {
-        let clickCount = 0;
-        const root = expectMarkupMismatch(<div>Mismatch</div>, <div><button onClick={() => clickCount++}/></div>);
-        expect(clickCount).toBe(0);
-        ReactTestUtils.Simulate.click(root.querySelector('button'));
-        expect(clickCount).toBe(1);
-      });
-
-      it('should have not have an event if the event was only on server', () => {
-        let clickCount = 0;
-        const root = expectMarkupMatch(<div><button onClick={() => clickCount++}/></div>, <div><button/></div>);
-        expect(clickCount).toBe(0);
-        ReactTestUtils.Simulate.click(root.querySelector('button'));
-        expect(clickCount).toBe(0); // note this is 0, click should NOT fire.
-      });
-
-      it('should have have an event if the event was only on client', () => {
-        let clickCount = 0;
-        const root = expectMarkupMatch(<div><button/></div>, <div><button onClick={() => clickCount++}/></div>);
-        expect(clickCount).toBe(0);
-        ReactTestUtils.Simulate.click(root.querySelector('button'));
-        expect(clickCount).toBe(1);
+        return render(<div><button onClick={() => clickCount++}/></div>).then(e => {
+          expect(clickCount).toBe(0);
+          ReactTestUtils.Simulate.click(e.querySelector('button'));
+          expect(clickCount).toBe(1);
+        });
       });
 
       // DOM Updates after server rendering
@@ -1318,121 +1597,6 @@ describe('ReactServerRendering', function() {
             caseAfter.test(root.firstChild.firstChild);
           });
         });
-      });
-
-      // Controlled inputs
-      const getControlledFieldClass = (initialValue, onChange = () => {}, TagName = 'input',
-        valueKey = 'value', extraProps = {}, children = null) => {
-        return class ControlledField extends React.Component {
-          constructor() {
-            super();
-            this.state = {[valueKey]: initialValue};
-          }
-          handleChange(event) {
-            onChange(event);
-            this.setState({[valueKey]: event.target[valueKey]});
-          }
-          render() {
-            return (<TagName type="text"
-              {...{[valueKey]: this.state[valueKey]}}
-              onChange={this.handleChange.bind(this)}
-              {...extraProps}>{children}</TagName>);
-          }
-        };
-      };
-
-      const testControlledField = (initialValue, changedValue, TagName = 'input',
-        valueKey = 'value', extraProps = {}, children = null) => {
-
-        let changeCount = 0;
-        const ControlledField = getControlledFieldClass(
-          initialValue, () => changeCount++, TagName, valueKey, extraProps, children
-        );
-
-        let field = connectToServerRendering(<ControlledField/>).firstChild;
-
-        expect(changeCount).toBe(0);
-        expect(field[valueKey]).toBe(initialValue);
-
-        // simulate a user typing.
-        field[valueKey] = changedValue;
-        ReactTestUtils.Simulate.change(field);
-
-        expect(changeCount).toBe(1);
-        expect(field[valueKey]).toBe(changedValue);
-      };
-
-      it('should render a controlled text input',
-        () => testControlledField('Hello', 'Goodbye'));
-
-      it('should render a controlled textarea',
-        () => testControlledField('Hello', 'Goodbye', 'textarea'));
-
-      it('should render a controlled checkbox',
-        () => testControlledField(true, false, 'input', 'checked', {type:'checkbox'}));
-
-      it('should render a controlled select',
-      () => testControlledField('B', 'A', 'select', 'value', {},
-        [
-          <option key="1" value="A">Option A</option>,
-          <option key="2" value="B">Option B</option>,
-        ]));
-
-      // User interaction before client markup reconnect
-      const testFieldWithUserInteractionBeforeClientRender = (
-        element, initialValue = 'foo', changedValue = 'bar', valueKey = 'value'
-      ) => {
-        const root = renderOnServer(element);
-        const field = root.firstChild;
-        expect(field[valueKey]).toBe(initialValue);
-
-        // simulate a user typing in the field **before** client-side reconnect happens.
-        field[valueKey] = changedValue;
-
-        // reconnect to the server markup.
-        renderOnClient(element, root);
-
-        // verify that the input field was not replaced.
-        expect(root.firstChild).toBe(field);
-        expect(field[valueKey]).toBe(changedValue);
-      };
-
-      it('should not blow away user-entered text on successful reconnect to an uncontrolled input', () => {
-        testFieldWithUserInteractionBeforeClientRender(<input defaultValue="foo"/>, 'foo', 'bar');
-      });
-
-      it('should not blow away user-entered text on successful reconnect to an controlled input', () => {
-        let changeCount = 0;
-        const Component = getControlledFieldClass('foo', () => changeCount++);
-        testFieldWithUserInteractionBeforeClientRender(<Component/>, 'foo', 'bar');
-        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
-        expect(changeCount).toBe(0);
-      });
-
-      it('should not blow away user-entered text on successful reconnect to an uncontrolled checkbox', () => {
-        testFieldWithUserInteractionBeforeClientRender(
-          <input type="checkbox" defaultChecked={true}/>, true, false, 'checked'
-        );
-      });
-
-      it('should not blow away user-entered text on successful reconnect to an controlled checkbox', () => {
-        let changeCount = 0;
-        const Component = getControlledFieldClass(true, () => changeCount++, 'input', 'checked', {type: 'checkbox'});
-        testFieldWithUserInteractionBeforeClientRender(<Component/>, true, false, 'checked');
-        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
-        expect(changeCount).toBe(0);
-      });
-
-      it('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () => {
-        testFieldWithUserInteractionBeforeClientRender(<textarea defaultValue="foo"/>, 'foo', 'bar', 'textContent');
-      });
-
-      it('should not blow away user-entered text on successful reconnect to an uncontrolled textarea', () => {
-        let changeCount = 0;
-        const Component = getControlledFieldClass('foo', () => changeCount++, 'textarea', 'value');
-        testFieldWithUserInteractionBeforeClientRender(<Component/>, 'foo', 'bar', 'textContent');
-        // TODO: is this right? should onChange fire when a user modifies before markup reconnection?
-        expect(changeCount).toBe(0);
       });
 
       // refs
