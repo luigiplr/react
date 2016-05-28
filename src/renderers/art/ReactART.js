@@ -380,11 +380,11 @@ const Group = createComponent('Group', NodeMixin, ContainerMixin, {
     return this.node;
   },
 
-  receiveComponent: function(nextComponent, transaction, context) {
+  receiveComponent: function(nextComponent, transaction, context, pureParent) {
     const props = nextComponent.props;
     const oldProps = this._currentElement.props;
     this.applyGroupProps(oldProps, props);
-    this.updateChildren(props.children, transaction, context);
+    this.updateChildren(props.children, transaction, context, pureParent);
     this._currentElement = nextComponent;
   },
 
@@ -418,11 +418,11 @@ const ClippingRectangle = createComponent(
     return this.node;
   },
 
-  receiveComponent: function(nextComponent, transaction, context) {
+  receiveComponent: function(nextComponent, transaction, context, pureParent) {
     const props = nextComponent.props;
     const oldProps = this._currentElement.props;
     this.applyClippingProps(oldProps, props);
-    this.updateChildren(props.children, transaction, context);
+    this.updateChildren(props.children, transaction, context, pureParent);
     this._currentElement = nextComponent;
   },
 
@@ -502,7 +502,7 @@ const Shape = createComponent('Shape', RenderableMixin, {
     return this.node;
   },
 
-  receiveComponent: function(nextComponent, transaction, context) {
+  receiveComponent: function(nextComponent, transaction, context, pureParent) {
     const props = nextComponent.props;
     const oldProps = this._currentElement.props;
     this.applyShapeProps(oldProps, props);
@@ -573,7 +573,7 @@ const Text = createComponent('Text', RenderableMixin, {
     );
   },
 
-  receiveComponent: function(nextComponent, transaction, context) {
+  receiveComponent: function(nextComponent, transaction, context, pureParent) {
     const props = nextComponent.props;
     const oldProps = this._currentElement.props;
 

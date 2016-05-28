@@ -52,7 +52,7 @@ Object.assign(ReactDOMEmptyComponent.prototype, {
       return '<!--' + nodeValue + '-->';
     }
   },
-  receiveComponent: function() {
+  receiveComponent: function(nextElement, transaction, context, pureParent) {
   },
   getHostNode: function() {
     return ReactDOMComponentTree.getNodeFromInstance(this);

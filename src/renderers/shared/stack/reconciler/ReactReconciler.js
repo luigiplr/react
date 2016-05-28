@@ -128,7 +128,7 @@ var ReactReconciler = {
    * @internal
    */
   receiveComponent: function(
-    internalInstance, nextElement, transaction, context
+    internalInstance, nextElement, transaction, context, pureParent
   ) {
     var prevElement = internalInstance._currentElement;
 
@@ -170,7 +170,12 @@ var ReactReconciler = {
       ReactRef.detachRefs(internalInstance, prevElement);
     }
 
-    internalInstance.receiveComponent(nextElement, transaction, context);
+    internalInstance.receiveComponent(
+      nextElement,
+      transaction,
+      context,
+      pureParent
+    );
 
     if (refsChanged &&
         internalInstance._currentElement &&

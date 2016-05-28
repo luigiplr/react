@@ -391,7 +391,7 @@ NoopInternalComponent.prototype = {
   mountComponent: function() {
   },
 
-  receiveComponent: function(element) {
+  receiveComponent: function(element, transaction, context, pureParent) {
     this._renderedOutput = element;
     this._currentElement = element;
   },
@@ -487,7 +487,8 @@ ReactShallowRenderer.prototype._render = function(element, transaction, context)
       this._instance,
       element,
       transaction,
-      context
+      context,
+      /* pureParent: */ false
     );
   } else {
     var instance = new ShallowComponentWrapper(element);
