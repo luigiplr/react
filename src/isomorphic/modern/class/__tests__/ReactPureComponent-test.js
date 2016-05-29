@@ -13,11 +13,13 @@
 
 var React;
 var ReactDOM;
+var shallowCompare;
 
 describe('ReactPureComponent', function() {
   beforeEach(function() {
     React = require('React');
     ReactDOM = require('ReactDOM');
+    shallowCompare = require('shallowCompare');
   });
 
   it('should render', function() {
@@ -184,4 +186,78 @@ describe('ReactPureComponent', function() {
     expect(functionalRenders).toBe(10);
   });
 
+  it('should re-render functional components that depend on context', function() {
+    // If a functional component depends on context, it's shouldn't be pure, even if its
+    // parent is a React.PureComponent.
+    class ScuPureParent extends React.Component {
+      render() {
+        return <div><ScuPure text={this.props.text}/></div>;
+      }
+      getChildContext() {
+        return {text: this.props.contextText};
+      }
+    }
+    ScuPureParent.childContextTypes = {
+      text: React.PropTypes.string,
+    };
+
+    class ScuPure extends React.Component {
+      render() {
+        return (
+          <div>
+            <Functional text={this.props.text[0]}/>
+            <Functional text={this.props.text[1]}/>
+          </div>
+        );
+      }
+      shouldComponentUpdate(nextProps, nextState) {
+        return shallowCompare(this, nextProps, nextState);
+      }
+    }
+
+
+    class PureParent extends React.Component {
+      render() {
+        return <div><Pure text={this.props.text}/></div>;
+      }
+      getChildContext() {
+        return {text: this.props.contextText};
+      }
+    }
+    PureParent.childContextTypes = {
+      text: React.PropTypes.string,
+    };
+
+    class Pure extends React.PureComponent {
+      render() {
+        return (
+          <div>
+            <Functional text={this.props.text[0]}/>
+            <Functional text={this.props.text[1]}/>
+          </div>
+        );
+      }
+    }
+    function Functional(props, context) {
+      return <div>{context.text}/{props.text}|</div>;
+    }
+    Functional.contextTypes = {
+      text: React.PropTypes.string,
+    };
+
+    var container = document.createElement('div');
+
+    ReactDOM.render(<ScuPureParent text={['porcini', 'morel']} contextText="mushroom"/>, container);
+    expect(container.textContent).toBe('mushroom/porcini|mushroom/morel|');
+    ReactDOM.render(<ScuPureParent text={['porcini', 'shiitake']} contextText="fungus"/>, container);
+    expect(container.textContent).toBe('fungus/porcini|fungus/shiitake|');
+    ReactDOM.unmountComponentAtNode(container);
+
+    ReactDOM.render(<PureParent text={['porcini', 'morel']} contextText="mushroom"/>, container);
+    expect(container.textContent).toBe('mushroom/porcini|mushroom/morel|');
+    ReactDOM.render(<PureParent text={['porcini', 'shiitake']} contextText="fungus"/>, container);
+    expect(container.textContent).toBe('fungus/porcini|fungus/shiitake|');
+    ReactDOM.unmountComponentAtNode(container);
+
+  });
 });
