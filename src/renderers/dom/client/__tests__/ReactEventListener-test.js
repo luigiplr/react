@@ -14,7 +14,7 @@
 
 var EVENT_TARGET_PARAM = 1;
 
-describe('ReactEventListener', function() {
+describe('ReactEventListener', () => {
   var React;
   var ReactDOM;
   var ReactDOMComponentTree;
@@ -22,7 +22,7 @@ describe('ReactEventListener', function() {
   var ReactTestUtils;
   var handleTopLevel;
 
-  beforeEach(function() {
+  beforeEach(() => {
     jest.resetModuleRegistry();
     React = require('React');
     ReactDOM = require('ReactDOM');
@@ -30,11 +30,11 @@ describe('ReactEventListener', function() {
     ReactEventListener = require('ReactEventListener');
     ReactTestUtils = require('ReactTestUtils');
 
-    handleTopLevel = jest.genMockFn();
+    handleTopLevel = jest.fn();
     ReactEventListener._handleTopLevel = handleTopLevel;
   });
 
-  it('should dispatch events from outside React tree', function() {
+  it('should dispatch events from outside React tree', () => {
     var otherNode = document.createElement('h1');
     var component = ReactDOM.render(<div />, document.createElement('div'));
     expect(handleTopLevel.mock.calls.length).toBe(0);
@@ -54,8 +54,8 @@ describe('ReactEventListener', function() {
     expect(handleTopLevel.mock.calls.length).toBe(1);
   });
 
-  describe('Propagation', function() {
-    it('should propagate events one level down', function() {
+  describe('Propagation', () => {
+    it('should propagate events one level down', () => {
       var childContainer = document.createElement('div');
       var childControl = <div>Child</div>;
       var parentContainer = document.createElement('div');
@@ -78,7 +78,7 @@ describe('ReactEventListener', function() {
         .toBe(ReactDOMComponentTree.getInstanceFromNode(parentControl));
     });
 
-    it('should propagate events two levels down', function() {
+    it('should propagate events two levels down', () => {
       var childContainer = document.createElement('div');
       var childControl = <div>Child</div>;
       var parentContainer = document.createElement('div');
@@ -108,7 +108,7 @@ describe('ReactEventListener', function() {
         .toBe(ReactDOMComponentTree.getInstanceFromNode(grandParentControl));
     });
 
-    it('should not get confused by disappearing elements', function() {
+    it('should not get confused by disappearing elements', () => {
       var childContainer = document.createElement('div');
       var childControl = <div>Child</div>;
       var parentContainer = document.createElement('div');
@@ -144,7 +144,7 @@ describe('ReactEventListener', function() {
         .toBe(ReactDOMComponentTree.getInstanceFromNode(parentControl));
     });
 
-    it('should batch between handlers from different roots', function() {
+    it('should batch between handlers from different roots', () => {
       var childContainer = document.createElement('div');
       var parentContainer = document.createElement('div');
       var childControl = ReactDOM.render(
@@ -183,19 +183,17 @@ describe('ReactEventListener', function() {
     });
   });
 
-  it('should not fire duplicate events for a React DOM tree', function() {
-    var Wrapper = React.createClass({
-
-      getInner: function() {
+  it('should not fire duplicate events for a React DOM tree', () => {
+    class Wrapper extends React.Component {
+      getInner = () => {
         return this.refs.inner;
-      },
+      };
 
-      render: function() {
+      render() {
         var inner = <div ref="inner">Inner</div>;
         return <div><div id="outer">{inner}</div></div>;
-      },
-
-    });
+      }
+    }
 
     var instance = ReactTestUtils.renderIntoDocument(<Wrapper />);
 

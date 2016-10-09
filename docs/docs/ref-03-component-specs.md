@@ -1,7 +1,7 @@
 ---
 id: component-specs
 title: Component Specs and Lifecycle
-permalink: component-specs.html
+permalink: docs/component-specs.html
 prev: component-api.html
 next: tags-and-attributes.html
 ---
@@ -36,6 +36,10 @@ object getInitialState()
 ```
 
 Invoked once before the component is mounted. The return value will be used as the initial value of `this.state`.
+
+> Note:
+>
+> This method is not available on ES6 `class` components that extend `React.Component`. For more information, please read our documentation about [ES6 classes](/react/docs/reusable-components.html#es6-classes).
 
 
 ### getDefaultProps

@@ -5,21 +5,37 @@ url: https://facebook.github.io
 baseurl: "/react"
 permalink: "/blog/:year/:month/:day/:title.html"
 paginate_path: "/blog/page:num/"
-relative_permalinks: true
 paginate: 5
 timezone: America/Los_Angeles
 highlighter: pygments
 defaults:
 - scope:
     path: ''
-    type: post
+    type: posts
   values:
     layout: post
+    sectionid: blog
+- scope:
+    path: blog
+    type: pages
+  values:
+    sectionid: blog
 - scope:
     path: docs
-    type: page
+    type: pages
   values:
     layout: docs
+    sectionid: docs
+- scope:
+    path: tips
+    type: pages
+  values:
+    sectionid: docs
+- scope:
+    path: contributing
+    type: pages
+  values:
+    sectionid: docs
 exclude:
 - Gemfile
 - Gemfile.lock
@@ -36,13 +52,14 @@ sass:
   sass_dir: _css
 gems:
 - jekyll-redirect-from
-react_version: 15.0.1
+- jekyll-paginate
+react_version: 15.3.2
 react_hashes:
-  dev: PcrCc8vAh3jounTGQGibvUE4liSu8s91ycPotf/cfEHdSnq9qaW2c9tFr3oyDzW4
-  prod: S9sTQnq5vvBUhj91S9s9dhE4fiZWgytnfFyIW7hu3Vk5leHzq03A9dULSd0IqW9N
-  addons_dev: TUMXymomVw+mFbSSojSWXtBVJiWEfUKUYzgZsgvUsdD9fL/y0PPc55825Ui2ZPY6
-  addons_prod: rBjtXXl33XbsJR2IbEYJRYH5VnUUMi4o6Zr7ai4UPxcrY0Cw3QpnaU9iIJ2GcyLy
-  dom_dev: ukADzi8g85qHW1NDinecbLJu/a+yfhgXK6G2Kl7vCckNICr4Pt1hN7mpfPzsgbD2
-  dom_prod: n1Sg+vSen3Mb4Ggzsi2jq4MHCXmlKD0spQXmiYaPSt/8WR7PzpwLTmH8OI+yAluA
-  dom_server_dev: eQOoGEpIR1fqOenVhLKRmPctitl54hZLIFg9uMYElEMx0r175Qedt3utJwCjsSrr
-  dom_server_prod: 41Tbqk6dOco41BSH7Fb2xAWh8PJTYntH+OR/m80NT+L5IF6XWcq/kvNZGzhBws60
+  dev: bQIyvl+8Ufi5KiKZPG9VItNWmhcAXA1pa5nHIEoBGob+rdbjJnpNV3s288Mz2yZu
+  prod: drG4TSBgFQ0Hb/A3ynRyFDT22irpJDL+duuxvYD5mkC9adCYDqEwnX13371waqiH
+  addons_dev: gCLxBq3yes/qREmjcw3Tdk5dUh3iB54huWqgxq1lAJZTYzLahJqEik5ZiVnq9Zt4
+  addons_prod: pmUKSclxJREtkrfcUJvBYTEoJCvO6Vj5ob8IgPSiIX0G3c4w2dKBJMoGEhlv9Gev
+  dom_dev: ZzFfcTbsRst34N23lWs6TtlfonXwDgpeALh+ObwYXav5BSo0j7KsaAtcdn+xrnS1
+  dom_prod: MTxlP+/p3lyvc2+LZc2B5xy5reGwrA80whnflxNc6zPgLUmMvbwUoKy7qorBH+P4
+  dom_server_dev: jHjmbawtj2AhVuJlmE/O1HXAIbQMzHvoXRZEVdhTSrfJXACRVpZm/BpuAi4K89xn
+  dom_server_prod: LCYUMPll/9t/UsNa/Q1zfti2awxxiiczBUZcQBdeGACH0sU6BEAllZuGxo5b6/kf

@@ -1,7 +1,7 @@
 ---
 id: transferring-props
 title: propsの移譲
-permalink: transferring-props-ja-JP.html
+permalink: docs/transferring-props-ja-JP.html
 prev: reusable-components-ja-JP.html
 next: forms-ja-JP.html
 
@@ -50,7 +50,7 @@ ReactDOM.render(
 ## JSXにおける `...` を使った移譲
 
 > 注意:
-> 以下の例では、実験的なES7のシンタックスであることを示すために `--harmony ` フラグが必要になります。ブラウザ上でJSXトランスフォーマーを使う際には、単純に `<script type="text/jsx;harmony=true">` を使ってスクリプトを読み込んでください。詳細については、 [レストとスプレッドのプロパティ ...](/react/docs/transferring-props.html#rest-and-spread-properties-...)をご覧ください。
+> 以下の例では、実験的なES7のシンタックスであることを示すために `--harmony ` フラグが必要になります。ブラウザ上でJSXトランスフォーマーを使う際には、単純に `<script type="text/jsx;harmony=true">` を使ってスクリプトを読み込んでください。詳細については、 [レストとスプレッドのプロパティ ...](/react/docs/transferring-props-ja-JP.html#レストとスプレッドのプロパティ-...)をご覧ください。
 
 全てのプロパティを渡すのはバグを生みやすく、面倒くさいときがあります。そのようなケースでは、未知のプロパティのセットを使うためにレストプロパティと共に[分割代入引数](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment)を使うことができます。
 

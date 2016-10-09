@@ -14,10 +14,10 @@
 
 var emptyFunction = require('emptyFunction');
 
-describe('ReactDOMInput', function() {
-  var EventConstants;
+describe('ReactDOMInput', () => {
   var React;
   var ReactDOM;
+  var ReactDOMServer;
   var ReactDOMFeatureFlags;
   var ReactLink;
   var ReactTestUtils;
@@ -30,11 +30,11 @@ describe('ReactDOMInput', function() {
     tracker.setValue(current);
   }
 
-  beforeEach(function() {
+  beforeEach(() => {
     jest.resetModuleRegistry();
-    EventConstants = require('EventConstants');
     React = require('React');
     ReactDOM = require('ReactDOM');
+    ReactDOMServer = require('ReactDOMServer');
     ReactDOMFeatureFlags = require('ReactDOMFeatureFlags');
     ReactLink = require('ReactLink');
     ReactTestUtils = require('ReactTestUtils');
@@ -42,15 +42,16 @@ describe('ReactDOMInput', function() {
     spyOn(console, 'error');
   });
 
-  it('should display `defaultValue` of number 0', function() {
+  it('should display `defaultValue` of number 0', () => {
     var stub = <input type="text" defaultValue={0} />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
 
+    expect(node.getAttribute('value')).toBe('0');
     expect(node.value).toBe('0');
   });
 
-  it('should display "true" for `defaultValue` of `true`', function() {
+  it('should display "true" for `defaultValue` of `true`', () => {
     var stub = <input type="text" defaultValue={true} />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
@@ -58,7 +59,7 @@ describe('ReactDOMInput', function() {
     expect(node.value).toBe('true');
   });
 
-  it('should display "false" for `defaultValue` of `false`', function() {
+  it('should display "false" for `defaultValue` of `false`', () => {
     var stub = <input type="text" defaultValue={false} />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
@@ -66,7 +67,93 @@ describe('ReactDOMInput', function() {
     expect(node.value).toBe('false');
   });
 
-  it('should display "foobar" for `defaultValue` of `objToString`', function() {
+  it('should update `defaultValue` for uncontrolled input', () => {
+    var container = document.createElement('div');
+
+    var node = ReactDOM.render(<input type="text" defaultValue="0" />, container);
+
+    expect(node.value).toBe('0');
+
+    ReactDOM.render(<input type="text" defaultValue="1" />, container);
+
+    expect(node.value).toBe('0');
+    expect(node.defaultValue).toBe('1');
+  });
+
+  it('should update `defaultValue` for uncontrolled date/time input', () => {
+    var container = document.createElement('div');
+
+    var node = ReactDOM.render(<input type="date" defaultValue="1980-01-01" />, container);
+
+    expect(node.value).toBe('1980-01-01');
+
+    ReactDOM.render(<input type="date" defaultValue="2000-01-01" />, container);
+
+    expect(node.value).toBe('1980-01-01');
+    expect(node.defaultValue).toBe('2000-01-01');
+
+    ReactDOM.render(<input type="date" />, container);
+  });
+
+  it('should take `defaultValue` when changing to uncontrolled input', () => {
+    var container = document.createElement('div');
+
+    var node = ReactDOM.render(<input type="text" value="0" readOnly="true" />, container);
+
+    expect(node.value).toBe('0');
+
+    ReactDOM.render(<input type="text" defaultValue="1" />, container);
+
+    expect(node.value).toBe('0');
+  });
+
+  it('should render defaultValue for SSR', () => {
+    var markup = ReactDOMServer.renderToString(<input type="text" defaultValue="1" />);
+    var div = document.createElement('div');
+    div.innerHTML = markup;
+    expect(div.firstChild.getAttribute('value')).toBe('1');
+    expect(div.firstChild.getAttribute('defaultValue')).toBe(null);
+  });
+
+  it('should render value for SSR', () => {
+    var element = <input type="text" value="1" onChange={function() {}} />;
+    var markup = ReactDOMServer.renderToString(element);
+    var div = document.createElement('div');
+    div.innerHTML = markup;
+    expect(div.firstChild.getAttribute('value')).toBe('1');
+    expect(div.firstChild.getAttribute('defaultValue')).toBe(null);
+  });
+
+  it('should render name attribute if it is supplied', () => {
+    var container = document.createElement('div');
+    var node = ReactDOM.render(<input type="text" name="name" />, container);
+    expect(node.name).toBe('name');
+    expect(container.firstChild.getAttribute('name')).toBe('name');
+  });
+
+  it('should render name attribute if it is supplied for SSR', () => {
+    var element = <input type="text" name="name" />;
+    var markup = ReactDOMServer.renderToString(element);
+    var div = document.createElement('div');
+    div.innerHTML = markup;
+    expect(div.firstChild.getAttribute('name')).toBe('name');
+  });
+
+  it('should not render name attribute if it is not supplied', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input type="text" />, container);
+    expect(container.firstChild.getAttribute('name')).toBe(null);
+  });
+
+  it('should not render name attribute if it is not supplied for SSR', () => {
+    var element = <input type="text" />;
+    var markup = ReactDOMServer.renderToString(element);
+    var div = document.createElement('div');
+    div.innerHTML = markup;
+    expect(div.firstChild.getAttribute('name')).toBe(null);
+  });
+
+  it('should display "foobar" for `defaultValue` of `objToString`', () => {
     var objToString = {
       toString: function() {
         return 'foobar';
@@ -80,7 +167,7 @@ describe('ReactDOMInput', function() {
     expect(node.value).toBe('foobar');
   });
 
-  it('should display `value` of number 0', function() {
+  it('should display `value` of number 0', () => {
     var stub = <input type="text" value={0} />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
@@ -88,11 +175,10 @@ describe('ReactDOMInput', function() {
     expect(node.value).toBe('0');
   });
 
-  it('should allow setting `value` to `true`', function() {
+  it('should allow setting `value` to `true`', () => {
     var container = document.createElement('div');
     var stub = <input type="text" value="yolo" onChange={emptyFunction} />;
-    stub = ReactDOM.render(stub, container);
-    var node = ReactDOM.findDOMNode(stub);
+    var node = ReactDOM.render(stub, container);
 
     expect(node.value).toBe('yolo');
 
@@ -103,11 +189,10 @@ describe('ReactDOMInput', function() {
     expect(node.value).toEqual('true');
   });
 
-  it('should allow setting `value` to `false`', function() {
+  it('should allow setting `value` to `false`', () => {
     var container = document.createElement('div');
     var stub = <input type="text" value="yolo" onChange={emptyFunction} />;
-    stub = ReactDOM.render(stub, container);
-    var node = ReactDOM.findDOMNode(stub);
+    var node = ReactDOM.render(stub, container);
 
     expect(node.value).toBe('yolo');
 
@@ -118,11 +203,10 @@ describe('ReactDOMInput', function() {
     expect(node.value).toEqual('false');
   });
 
-  it('should allow setting `value` to `objToString`', function() {
+  it('should allow setting `value` to `objToString`', () => {
     var container = document.createElement('div');
     var stub = <input type="text" value="foo" onChange={emptyFunction} />;
-    stub = ReactDOM.render(stub, container);
-    var node = ReactDOM.findDOMNode(stub);
+    var node = ReactDOM.render(stub, container);
 
     expect(node.value).toBe('foo');
 
@@ -138,7 +222,30 @@ describe('ReactDOMInput', function() {
     expect(node.value).toEqual('foobar');
   });
 
-  it('should properly control a value of number `0`', function() {
+  it('should not incur unnecessary DOM mutations', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input value="a" />, container);
+
+    var node = container.firstChild;
+    var nodeValue = 'a';
+    var nodeValueSetter = jest.genMockFn();
+    Object.defineProperty(node, 'value', {
+      get: function() {
+        return nodeValue;
+      },
+      set: nodeValueSetter.mockImplementation(function(newValue) {
+        nodeValue = newValue;
+      }),
+    });
+
+    ReactDOM.render(<input value="a" />, container);
+    expect(nodeValueSetter.mock.calls.length).toBe(0);
+
+    ReactDOM.render(<input value="b"/>, container);
+    expect(nodeValueSetter.mock.calls.length).toBe(1);
+  });
+
+  it('should properly control a value of number `0`', () => {
     var stub = <input type="text" value={0} onChange={emptyFunction} />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
@@ -148,7 +255,7 @@ describe('ReactDOMInput', function() {
     expect(node.value).toBe('0');
   });
 
-  it('should have the correct target value', function() {
+  it('should have the correct target value', () => {
     var handled = false;
     var handler = function(event) {
       expect(event.target.nodeName).toBe('INPUT');
@@ -164,7 +271,7 @@ describe('ReactDOMInput', function() {
     fakeNativeEvent.target = node;
     fakeNativeEvent.path = [node, container];
     ReactTestUtils.simulateNativeEventOnNode(
-      EventConstants.topLevelTypes.topInput,
+      'topInput',
       node,
       fakeNativeEvent
     );
@@ -172,7 +279,7 @@ describe('ReactDOMInput', function() {
     expect(handled).toBe(true);
   });
 
-  it('should not set a value for submit buttons unnecessarily', function() {
+  it('should not set a value for submit buttons unnecessarily', () => {
     var stub = <input type="submit" />;
     stub = ReactTestUtils.renderIntoDocument(stub);
     var node = ReactDOM.findDOMNode(stub);
@@ -186,9 +293,9 @@ describe('ReactDOMInput', function() {
     ).toBe(true);
   });
 
-  it('should control radio buttons', function() {
-    var RadioGroup = React.createClass({
-      render: function() {
+  it('should control radio buttons', () => {
+    class RadioGroup extends React.Component {
+      render() {
         return (
           <div>
             <input
@@ -216,8 +323,8 @@ describe('ReactDOMInput', function() {
             </form>
           </div>
         );
-      },
-    });
+      }
+    }
 
     var stub = ReactTestUtils.renderIntoDocument(<RadioGroup />);
     var aNode = ReactDOM.findDOMNode(stub.refs.a);
@@ -244,8 +351,8 @@ describe('ReactDOMInput', function() {
     expect(cNode.checked).toBe(true);
   });
 
-  it('should support ReactLink', function() {
-    var link = new ReactLink('yolo', jest.genMockFn());
+  it('should support ReactLink', () => {
+    var link = new ReactLink('yolo', jest.fn());
     var instance = <input type="text" valueLink={link} />;
 
     instance = ReactTestUtils.renderIntoDocument(instance);
@@ -261,35 +368,35 @@ describe('ReactDOMInput', function() {
     expect(link.requestChange.mock.calls[0][0]).toEqual('test');
   });
 
-  it('should warn with value and no onChange handler', function() {
-    var link = new ReactLink('yolo', jest.genMockFn());
+  it('should warn with value and no onChange handler', () => {
+    var link = new ReactLink('yolo', jest.fn());
     ReactTestUtils.renderIntoDocument(<input type="text" valueLink={link} />);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       '`valueLink` prop on `input` is deprecated; set `value` and `onChange` instead.'
     );
 
     ReactTestUtils.renderIntoDocument(
-      <input type="text" value="zoink" onChange={jest.genMockFn()} />
+      <input type="text" value="zoink" onChange={jest.fn()} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
     ReactTestUtils.renderIntoDocument(<input type="text" value="zoink" />);
-    expect(console.error.argsForCall.length).toBe(2);
+    expect(console.error.calls.count()).toBe(2);
   });
 
-  it('should warn with value and no onChange handler and readOnly specified', function() {
+  it('should warn with value and no onChange handler and readOnly specified', () => {
     ReactTestUtils.renderIntoDocument(
       <input type="text" value="zoink" readOnly={true} />
     );
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
 
     ReactTestUtils.renderIntoDocument(
       <input type="text" value="zoink" readOnly={false} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
   });
 
-  it('should have a this value of undefined if bind is not used', function() {
+  it('should have a this value of undefined if bind is not used', () => {
     var unboundInputOnChange = function() {
       expect(this).toBe(undefined);
     };
@@ -300,9 +407,9 @@ describe('ReactDOMInput', function() {
     ReactTestUtils.Simulate.change(instance);
   });
 
-  it('should throw if both value and valueLink are provided', function() {
+  it('should throw if both value and valueLink are provided', () => {
     var node = document.createElement('div');
-    var link = new ReactLink('yolo', jest.genMockFn());
+    var link = new ReactLink('yolo', jest.fn());
     var instance = <input type="text" valueLink={link} />;
 
     expect(() => ReactDOM.render(instance, node)).not.toThrow();
@@ -321,8 +428,8 @@ describe('ReactDOMInput', function() {
 
   });
 
-  it('should support checkedLink', function() {
-    var link = new ReactLink(true, jest.genMockFn());
+  it('should support checkedLink', () => {
+    var link = new ReactLink(true, jest.fn());
     var instance = <input type="checkbox" checkedLink={link} />;
 
     instance = ReactTestUtils.renderIntoDocument(instance);
@@ -338,12 +445,12 @@ describe('ReactDOMInput', function() {
     expect(link.requestChange.mock.calls[0][0]).toEqual(false);
   });
 
-  it('should warn with checked and no onChange handler', function() {
+  it('should warn with checked and no onChange handler', () => {
     var node = document.createElement('div');
-    var link = new ReactLink(true, jest.genMockFn());
+    var link = new ReactLink(true, jest.fn());
     ReactDOM.render(<input type="checkbox" checkedLink={link} />, node);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       '`checkedLink` prop on `input` is deprecated; set `value` and `onChange` instead.'
     );
 
@@ -351,35 +458,35 @@ describe('ReactDOMInput', function() {
       <input
         type="checkbox"
         checked="false"
-        onChange={jest.genMockFn()}
+        onChange={jest.fn()}
       />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
 
     ReactTestUtils.renderIntoDocument(
       <input type="checkbox" checked="false" readOnly={true} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
 
     ReactTestUtils.renderIntoDocument(<input type="checkbox" checked="false" />);
-    expect(console.error.argsForCall.length).toBe(2);
+    expect(console.error.calls.count()).toBe(2);
   });
 
-  it('should warn with checked and no onChange handler with readOnly specified', function() {
+  it('should warn with checked and no onChange handler with readOnly specified', () => {
     ReactTestUtils.renderIntoDocument(
       <input type="checkbox" checked="false" readOnly={true} />
     );
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
 
     ReactTestUtils.renderIntoDocument(
       <input type="checkbox" checked="false" readOnly={false} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
   });
 
-  it('should throw if both checked and checkedLink are provided', function() {
+  it('should throw if both checked and checkedLink are provided', () => {
     var node = document.createElement('div');
-    var link = new ReactLink(true, jest.genMockFn());
+    var link = new ReactLink(true, jest.fn());
     var instance = <input type="checkbox" checkedLink={link} />;
 
     expect(() => ReactDOM.render(instance, node)).not.toThrow();
@@ -399,9 +506,16 @@ describe('ReactDOMInput', function() {
 
   });
 
-  it('should throw if both checkedLink and valueLink are provided', function() {
+  it('should update defaultValue to empty string', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input type="text" defaultValue={'foo'} />, container);
+    ReactDOM.render(<input type="text" defaultValue={''} />, container);
+    expect(container.firstChild.defaultValue).toBe('');
+  });
+
+  it('should throw if both checkedLink and valueLink are provided', () => {
     var node = document.createElement('div');
-    var link = new ReactLink(true, jest.genMockFn());
+    var link = new ReactLink(true, jest.fn());
     var instance = <input type="checkbox" checkedLink={link} />;
 
     expect(() => ReactDOM.render(instance, node)).not.toThrow();
@@ -414,23 +528,23 @@ describe('ReactDOMInput', function() {
     expect(() => ReactDOM.render(instance, node)).toThrow();
   });
 
-  it('should warn if value is null', function() {
+  it('should warn if value is null', () => {
     ReactTestUtils.renderIntoDocument(<input type="text" value={null} />);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       '`value` prop on `input` should not be null. ' +
       'Consider using the empty string to clear the component or `undefined` ' +
       'for uncontrolled components.'
     );
 
     ReactTestUtils.renderIntoDocument(<input type="text" value={null} />);
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
   });
 
-  it('should warn if checked and defaultChecked props are specified', function() {
+  it('should warn if checked and defaultChecked props are specified', () => {
     ReactTestUtils.renderIntoDocument(
       <input type="radio" checked={true} defaultChecked={true} readOnly={true} />
     );
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component contains an input of type radio with both checked and defaultChecked props. ' +
       'Input elements must be either controlled or uncontrolled ' +
       '(specify either the checked prop, or the defaultChecked prop, but not ' +
@@ -442,14 +556,14 @@ describe('ReactDOMInput', function() {
     ReactTestUtils.renderIntoDocument(
       <input type="radio" checked={true} defaultChecked={true} readOnly={true} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
   });
 
-  it('should warn if value and defaultValue props are specified', function() {
+  it('should warn if value and defaultValue props are specified', () => {
     ReactTestUtils.renderIntoDocument(
       <input type="text" value="foo" defaultValue="bar" readOnly={true} />
     );
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component contains an input of type text with both value and defaultValue props. ' +
       'Input elements must be either controlled or uncontrolled ' +
       '(specify either the value prop, or the defaultValue prop, but not ' +
@@ -461,16 +575,16 @@ describe('ReactDOMInput', function() {
     ReactTestUtils.renderIntoDocument(
       <input type="text" value="foo" defaultValue="bar" readOnly={true} />
     );
-    expect(console.error.argsForCall.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
   });
 
-  it('should warn if controlled input switches to uncontrolled', function() {
+  it('should warn if controlled input switches to uncontrolled (value is undefined)', () => {
     var stub = <input type="text" value="controlled" onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="text" />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type text to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -478,13 +592,27 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if controlled input switches to uncontrolled with defaultValue', function() {
+  it('should warn if controlled input switches to uncontrolled (value is null)', () => {
+    var stub = <input type="text" value="controlled" onChange={emptyFunction} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="text" value={null} />, container);
+    expect(console.error.calls.count()).toBeGreaterThan(0);
+    expect(console.error.calls.argsFor(1)[0]).toContain(
+      'A component is changing a controlled input of type text to be uncontrolled. ' +
+      'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should warn if controlled input switches to uncontrolled with defaultValue', () => {
     var stub = <input type="text" value="controlled" onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="text" defaultValue="uncontrolled" />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type text to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -492,27 +620,41 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if uncontrolled input switches to controlled', function() {
+  it('should warn if uncontrolled input (value is undefined) switches to controlled', () => {
     var stub = <input type="text" />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="text" value="controlled" />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
-      'A component is changing a uncontrolled input of type text to be controlled. ' +
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing an uncontrolled input of type text to be controlled. ' +
       'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
       'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
     );
   });
 
-  it('should warn if controlled checkbox switches to uncontrolled', function() {
+  it('should warn if uncontrolled input (value is null) switches to controlled', () => {
+    var stub = <input type="text" value={null} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="text" value="controlled" />, container);
+    expect(console.error.calls.count()).toBeGreaterThan(0);
+    expect(console.error.calls.argsFor(1)[0]).toContain(
+      'A component is changing an uncontrolled input of type text to be controlled. ' +
+      'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should warn if controlled checkbox switches to uncontrolled (checked is undefined)', () => {
     var stub = <input type="checkbox" checked={true} onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="checkbox" />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type checkbox to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -520,13 +662,27 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if controlled checkbox switches to uncontrolled with defaultChecked', function() {
+  it('should warn if controlled checkbox switches to uncontrolled (checked is null)', () => {
+    var stub = <input type="checkbox" checked={true} onChange={emptyFunction} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="checkbox" checked={null} />, container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing a controlled input of type checkbox to be uncontrolled. ' +
+      'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should warn if controlled checkbox switches to uncontrolled with defaultChecked', () => {
     var stub = <input type="checkbox" checked={true} onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="checkbox" defaultChecked={true} />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type checkbox to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -534,27 +690,41 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if uncontrolled checkbox switches to controlled', function() {
+  it('should warn if uncontrolled checkbox (checked is undefined) switches to controlled', () => {
     var stub = <input type="checkbox" />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="checkbox" checked={true} />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
-      'A component is changing a uncontrolled input of type checkbox to be controlled. ' +
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing an uncontrolled input of type checkbox to be controlled. ' +
       'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
       'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
     );
   });
 
-  it('should warn if controlled radio switches to uncontrolled', function() {
+  it('should warn if uncontrolled checkbox (checked is null) switches to controlled', () => {
+    var stub = <input type="checkbox" checked={null} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="checkbox" checked={true} />, container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing an uncontrolled input of type checkbox to be controlled. ' +
+      'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should warn if controlled radio switches to uncontrolled (checked is undefined)', () => {
     var stub = <input type="radio" checked={true} onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="radio" />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type radio to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -562,13 +732,27 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if controlled radio switches to uncontrolled with defaultChecked', function() {
+  it('should warn if controlled radio switches to uncontrolled (checked is null)', () => {
+    var stub = <input type="radio" checked={true} onChange={emptyFunction} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="radio" checked={null} />, container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing a controlled input of type radio to be uncontrolled. ' +
+      'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should warn if controlled radio switches to uncontrolled with defaultChecked', () => {
     var stub = <input type="radio" checked={true} onChange={emptyFunction} />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="radio" defaultChecked={true} />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'A component is changing a controlled input of type radio to be uncontrolled. ' +
       'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
@@ -576,27 +760,77 @@ describe('ReactDOMInput', function() {
     );
   });
 
-  it('should warn if uncontrolled radio switches to controlled', function() {
+  it('should warn if uncontrolled radio (checked is undefined) switches to controlled', () => {
     var stub = <input type="radio" />;
     var container = document.createElement('div');
     ReactDOM.render(stub, container);
     ReactDOM.render(<input type="radio" checked={true} />, container);
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
-      'A component is changing a uncontrolled input of type radio to be controlled. ' +
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing an uncontrolled input of type radio to be controlled. ' +
       'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
       'Decide between using a controlled or uncontrolled input ' +
       'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
     );
   });
 
-  it('sets type before value always', function() {
+  it('should warn if uncontrolled radio (checked is null) switches to controlled', () => {
+    var stub = <input type="radio" checked={null} />;
+    var container = document.createElement('div');
+    ReactDOM.render(stub, container);
+    ReactDOM.render(<input type="radio" checked={true} />, container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing an uncontrolled input of type radio to be controlled. ' +
+      'Input elements should not switch from uncontrolled to controlled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('should not warn if radio value changes but never becomes controlled', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input type="radio" value="value" />, container);
+    ReactDOM.render(<input type="radio" />, container);
+    ReactDOM.render(<input type="radio" value="value" defaultChecked={true} />, container);
+    ReactDOM.render(<input type="radio" value="value" onChange={() => null} />, container);
+    ReactDOM.render(<input type="radio" />, container);
+    expect(console.error.calls.count()).toBe(0);
+  });
+
+  it('should not warn if radio value changes but never becomes uncontrolled', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input type="radio" checked={false} onChange={() => null} />, container);
+    ReactDOM.render(
+      <input
+        type="radio"
+        value="value"
+        defaultChecked={true}
+        checked={false}
+        onChange={() => null}
+      />, container);
+    expect(console.error.calls.count()).toBe(0);
+  });
+
+  it('should warn if radio checked false changes to become uncontrolled', () => {
+    var container = document.createElement('div');
+    ReactDOM.render(<input type="radio" value="value" checked={false} onChange={() => null} />, container);
+    ReactDOM.render(<input type="radio" value="value" />, container);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'A component is changing a controlled input of type radio to be uncontrolled. ' +
+      'Input elements should not switch from controlled to uncontrolled (or vice versa). ' +
+      'Decide between using a controlled or uncontrolled input ' +
+      'element for the lifetime of the component. More info: https://fb.me/react-controlled-components'
+    );
+  });
+
+  it('sets type, step, min, max before value always', () => {
     if (!ReactDOMFeatureFlags.useCreateElement) {
       return;
     }
     var log = [];
     var originalCreateElement = document.createElement;
-    spyOn(document, 'createElement').andCallFake(function(type) {
+    spyOn(document, 'createElement').and.callFake(function(type) {
       var el = originalCreateElement.apply(this, arguments);
       if (type === 'input') {
         Object.defineProperty(el, 'value', {
@@ -605,26 +839,89 @@ describe('ReactDOMInput', function() {
             log.push('set value');
           },
         });
-        spyOn(el, 'setAttribute').andCallFake(function(name, value) {
+        spyOn(el, 'setAttribute').and.callFake(function(name, value) {
           log.push('set ' + name);
         });
       }
       return el;
     });
 
-    ReactTestUtils.renderIntoDocument(<input value="hi" type="radio" />);
-    // Setting value before type does bad things. Make sure we set type first.
+    ReactTestUtils.renderIntoDocument(<input value="0" type="range" min="0" max="100" step="1" />);
     expect(log).toEqual([
       'set data-reactroot',
       'set type',
+      'set step',
+      'set min',
+      'set max',
       'set value',
+      'set value',
+      'set checked',
+      'set checked',
     ]);
   });
 
-  it('sets value properly with type coming later in props', function() {
+  it('sets value properly with type coming later in props', () => {
     var input = ReactTestUtils.renderIntoDocument(
       <input value="hi" type="radio" />
     );
     expect(input.value).toBe('hi');
+  });
+
+  it('does not raise a validation warning when it switches types', () => {
+    class Input extends React.Component {
+      state = { type: 'number', value: 1000 };
+
+      render() {
+        var { value, type } = this.state;
+        return (<input onChange={() => {}} type={type} value={value} />);
+      }
+    }
+
+    var input = ReactTestUtils.renderIntoDocument(<Input />);
+    var node = ReactDOM.findDOMNode(input);
+
+    // If the value is set before the type, a validation warning will raise and
+    // the value will not be assigned.
+    input.setState({ type: 'text', value: 'Test' });
+    expect(node.value).toEqual('Test');
+  });
+
+  it('resets value of date/time input to fix bugs in iOS Safari', () => {
+    // https://github.com/facebook/react/issues/7233
+    if (!ReactDOMFeatureFlags.useCreateElement) {
+      return;
+    }
+
+    function strify(x) {
+      return JSON.stringify(x, null, 2);
+    }
+
+    var log = [];
+    var originalCreateElement = document.createElement;
+    spyOn(document, 'createElement').and.callFake(function(type) {
+      var el = originalCreateElement.apply(this, arguments);
+      if (type === 'input') {
+        Object.defineProperty(el, 'value', {
+          set: function(val) {
+            log.push(`node.value = ${strify(val)}`);
+          },
+        });
+        spyOn(el, 'setAttribute').and.callFake(function(name, val) {
+          log.push(`node.setAttribute(${strify(name)}, ${strify(val)})`);
+        });
+      }
+      return el;
+    });
+
+    ReactTestUtils.renderIntoDocument(<input type="date" defaultValue="1980-01-01" />);
+    expect(log).toEqual([
+      'node.setAttribute("data-reactroot", "")',
+      'node.setAttribute("type", "date")',
+      'node.setAttribute("value", "1980-01-01")',
+      'node.value = ""',
+      'node.value = ""',
+      'node.setAttribute("checked", "")',
+      'node.setAttribute("checked", "")',
+    ]);
   });
 });

@@ -15,25 +15,25 @@ var React;
 var ReactTestUtils;
 var reactComponentExpect;
 
-describe('reactComponentExpect', function() {
+describe('reactComponentExpect', () => {
 
-  beforeEach(function() {
+  beforeEach(() => {
     React = require('React');
     ReactTestUtils = require('ReactTestUtils');
     reactComponentExpect = require('reactComponentExpect');
   });
 
-  it('should detect text components', function() {
-    var SomeComponent = React.createClass({
-      render: function() {
+  it('should detect text components', () => {
+    class SomeComponent extends React.Component {
+      render() {
         return (
           <div>
             <div>This is a div</div>
             {'This is text'}
           </div>
         );
-      },
-    });
+      }
+    }
 
     var component = ReactTestUtils.renderIntoDocument(<SomeComponent />);
 

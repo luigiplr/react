@@ -18,8 +18,8 @@ var ReactMount;
 var ReactTestUtils;
 var WebComponents;
 
-describe('ReactMount', function() {
-  beforeEach(function() {
+describe('ReactMount', () => {
+  beforeEach(() => {
     jest.resetModuleRegistry();
 
     React = require('React');
@@ -39,41 +39,42 @@ describe('ReactMount', function() {
     }
   });
 
-  describe('unmountComponentAtNode', function() {
-    it('throws when given a non-node', function() {
+  describe('unmountComponentAtNode', () => {
+    it('throws when given a non-node', () => {
       var nodeArray = document.getElementsByTagName('div');
       expect(function() {
         ReactDOM.unmountComponentAtNode(nodeArray);
-      }).toThrow(
+      }).toThrowError(
         'unmountComponentAtNode(...): Target container is not a DOM element.'
       );
     });
   });
 
-  it('throws when given a string', function() {
+  it('throws when given a string', () => {
     expect(function() {
       ReactTestUtils.renderIntoDocument('div');
-    }).toThrow(
+    }).toThrowError(
       'ReactDOM.render(): Invalid component element. Instead of passing a ' +
       'string like \'div\', pass React.createElement(\'div\') or <div />.'
     );
   });
 
-  it('throws when given a factory', function() {
-    var Component = React.createClass({
-      render: function() {
+  it('throws when given a factory', () => {
+    class Component extends React.Component {
+      render() {
         return <div />;
-      },
-    });
+      }
+    }
+
     expect(function() {
       ReactTestUtils.renderIntoDocument(Component);
-    }).toThrow(
+    }).toThrowError(
       'ReactDOM.render(): Invalid component element. Instead of passing a ' +
       'class like Foo, pass React.createElement(Foo) or <Foo />.'
     );
   });
 
-  it('should render different components in same root', function() {
+  it('should render different components in same root', () => {
     var container = document.createElement('container');
     document.body.appendChild(container);
 
@@ -84,11 +85,11 @@ describe('ReactMount', function() {
     expect(container.firstChild.nodeName).toBe('SPAN');
   });
 
-  it('should unmount and remount if the key changes', function() {
+  it('should unmount and remount if the key changes', () => {
     var container = document.createElement('container');
 
-    var mockMount = jest.genMockFn();
-    var mockUnmount = jest.genMockFn();
+    var mockMount = jest.fn();
+    var mockUnmount = jest.fn();
 
     var Component = React.createClass({
       componentDidMount: mockMount,
@@ -119,7 +120,7 @@ describe('ReactMount', function() {
     expect(mockUnmount.mock.calls.length).toBe(1);
   });
 
-  it('should reuse markup if rendering to the same target twice', function() {
+  it('should reuse markup if rendering to the same target twice', () => {
     var container = document.createElement('container');
     var instance1 = ReactDOM.render(<div />, container);
     var instance2 = ReactDOM.render(<div />, container);
@@ -127,43 +128,43 @@ describe('ReactMount', function() {
     expect(instance1 === instance2).toBe(true);
   });
 
-  it('should warn if mounting into dirty rendered markup', function() {
+  it('should warn if mounting into dirty rendered markup', () => {
     var container = document.createElement('container');
     container.innerHTML = ReactDOMServer.renderToString(<div />) + ' ';
 
     spyOn(console, 'error');
     ReactMount.render(<div />, container);
-    expect(console.error.calls.length).toBe(1);
+    expect(console.error.calls.count()).toBe(1);
 
     container.innerHTML = ' ' + ReactDOMServer.renderToString(<div />);
 
     ReactMount.render(<div />, container);
-    expect(console.error.calls.length).toBe(2);
+    expect(console.error.calls.count()).toBe(2);
   });
 
-  it('should not warn if mounting into non-empty node', function() {
+  it('should not warn if mounting into non-empty node', () => {
     var container = document.createElement('container');
     container.innerHTML = '<div></div>';
 
     spyOn(console, 'error');
     ReactMount.render(<div />, container);
-    expect(console.error.calls.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('should warn when mounting into document.body', function() {
+  it('should warn when mounting into document.body', () => {
     var iFrame = document.createElement('iframe');
     document.body.appendChild(iFrame);
     spyOn(console, 'error');
 
     ReactMount.render(<div />, iFrame.contentDocument.body);
 
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'Rendering components directly into document.body is discouraged'
     );
   });
 
-  it('should account for escaping on a checksum mismatch', function() {
+  it('should account for escaping on a checksum mismatch', () => {
     var div = document.createElement('div');
     var markup = ReactDOMServer.renderToString(
       <div>This markup contains an nbsp entity: &nbsp; server text</div>);
@@ -174,15 +175,15 @@ describe('ReactMount', function() {
       <div>This markup contains an nbsp entity: &nbsp; client text</div>,
       div
     );
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       ' (client) nbsp entity: &nbsp; client text</div>\n' +
       ' (server) nbsp entity: &nbsp; server text</div>'
     );
   });
 
   if (WebComponents !== undefined) {
-    it('should allow mounting/unmounting to document fragment container', function() {
+    it('should allow mounting/unmounting to document fragment container', () => {
       var shadowRoot;
       var proto = Object.create(HTMLElement.prototype, {
         createdCallback: {
@@ -204,21 +205,23 @@ describe('ReactMount', function() {
     });
   }
 
-  it('should warn if render removes React-rendered children', function() {
+  it('should warn if render removes React-rendered children', () => {
     var container = document.createElement('container');
-    var Component = React.createClass({
-      render: function() {
+
+    class Component extends React.Component {
+      render() {
         return <div><div /></div>;
-      },
-    });
+      }
+    }
+
     ReactDOM.render(<Component />, container);
 
     // Test that blasting away children throws a warning
     spyOn(console, 'error');
     var rootNode = container.firstChild;
     ReactDOM.render(<span />, rootNode);
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toBe(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toBe(
       'Warning: render(...): Replacing React-rendered children with a new ' +
       'root component. If you intended to update the children of this node, ' +
       'you should instead have the existing children update their state and ' +
@@ -226,7 +229,35 @@ describe('ReactMount', function() {
     );
   });
 
-  it('passes the correct callback context', function() {
+  it('should warn if the unmounted node was rendered by another copy of React', () => {
+    jest.resetModuleRegistry();
+    var ReactDOMOther = require('ReactDOM');
+    var container = document.createElement('div');
+
+    class Component extends React.Component {
+      render() {
+        return <div><div /></div>;
+      }
+    }
+
+    ReactDOM.render(<Component />, container);
+    // Make sure ReactDOM and ReactDOMOther are different copies
+    expect(ReactDOM).not.toEqual(ReactDOMOther);
+
+    spyOn(console, 'error');
+    ReactDOMOther.unmountComponentAtNode(container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toBe(
+      'Warning: unmountComponentAtNode(): The node you\'re attempting to unmount ' +
+      'was rendered by another copy of React.'
+    );
+
+    // Don't throw a warning if the correct React copy unmounts the node
+    ReactDOM.unmountComponentAtNode(container);
+    expect(console.error.calls.count()).toBe(1);
+  });
+
+  it('passes the correct callback context', () => {
     var container = document.createElement('div');
     var calls = 0;
 
@@ -266,7 +297,7 @@ describe('ReactMount', function() {
     expect(calls).toBe(5);
   });
 
-  it('tracks root instances', function() {
+  it('tracks root instances', () => {
     // Used by devtools.
     expect(Object.keys(ReactMount._instancesByReactRootID).length).toBe(0);
     ReactTestUtils.renderIntoDocument(<span />);
@@ -278,20 +309,20 @@ describe('ReactMount', function() {
     expect(Object.keys(ReactMount._instancesByReactRootID).length).toBe(1);
   });
 
-  it('marks top-level mounts', function() {
+  it('marks top-level mounts', () => {
     var ReactFeatureFlags = require('ReactFeatureFlags');
 
-    var Foo = React.createClass({
-      render: function() {
+    class Foo extends React.Component {
+      render() {
         return <Bar />;
-      },
-    });
+      }
+    }
 
-    var Bar = React.createClass({
-      render: function() {
+    class Bar extends React.Component {
+      render() {
         return <div />;
-      },
-    });
+      }
+    }
 
     try {
       ReactFeatureFlags.logTopLevelRenders = true;
@@ -300,10 +331,10 @@ describe('ReactMount', function() {
 
       ReactTestUtils.renderIntoDocument(<Foo />);
 
-      expect(console.time.argsForCall.length).toBe(1);
-      expect(console.time.argsForCall[0][0]).toBe('React mount: Foo');
-      expect(console.timeEnd.argsForCall.length).toBe(1);
-      expect(console.timeEnd.argsForCall[0][0]).toBe('React mount: Foo');
+      expect(console.time.calls.count()).toBe(1);
+      expect(console.time.calls.argsFor(0)[0]).toBe('React mount: Foo');
+      expect(console.timeEnd.calls.count()).toBe(1);
+      expect(console.timeEnd.calls.argsFor(0)[0]).toBe('React mount: Foo');
     } finally {
       ReactFeatureFlags.logTopLevelRenders = false;
     }

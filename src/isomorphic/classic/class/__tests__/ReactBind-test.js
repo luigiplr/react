@@ -16,13 +16,13 @@ var ReactTestUtils = require('ReactTestUtils');
 var reactComponentExpect = require('reactComponentExpect');
 
 // TODO: Test render and all stock methods.
-describe('autobinding', function() {
+describe('autobinding', () => {
 
-  it('Holds reference to instance', function() {
+  it('Holds reference to instance', () => {
 
-    var mouseDidEnter = jest.genMockFn();
-    var mouseDidLeave = jest.genMockFn();
-    var mouseDidClick = jest.genMockFn();
+    var mouseDidEnter = jest.fn();
+    var mouseDidLeave = jest.fn();
+    var mouseDidClick = jest.fn();
 
     var TestBindComponent = React.createClass({
       getInitialState: function() {
@@ -94,8 +94,8 @@ describe('autobinding', function() {
     expect(mouseDidLeave.mock.instances[1]).toBe(mountedInstance2);
   });
 
-  it('works with mixins', function() {
-    var mouseDidClick = jest.genMockFn();
+  it('works with mixins', () => {
+    var mouseDidClick = jest.fn();
 
     var TestMixin = {
       onClick: mouseDidClick,
@@ -120,7 +120,7 @@ describe('autobinding', function() {
     expect(mouseDidClick.mock.instances[0]).toBe(mountedInstance1);
   });
 
-  it('warns if you try to bind to this', function() {
+  it('warns if you try to bind to this', () => {
     spyOn(console, 'error');
 
     var TestBindComponent = React.createClass({
@@ -132,15 +132,15 @@ describe('autobinding', function() {
 
     ReactTestUtils.renderIntoDocument(<TestBindComponent />);
 
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toBe(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toBe(
       'Warning: bind(): You are binding a component method to the component. ' +
       'React does this for you automatically in a high-performance ' +
       'way, so you can safely remove this call. See TestBindComponent'
     );
   });
 
-  it('does not warn if you pass an auto-bound method to setState', function() {
+  it('does not warn if you pass an auto-bound method to setState', () => {
     spyOn(console, 'error');
 
     var TestBindComponent = React.createClass({
@@ -160,7 +160,7 @@ describe('autobinding', function() {
 
     ReactTestUtils.renderIntoDocument(<TestBindComponent />);
 
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
 });

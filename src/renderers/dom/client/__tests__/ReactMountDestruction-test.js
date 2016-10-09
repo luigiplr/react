@@ -14,8 +14,8 @@
 var React = require('React');
 var ReactDOM = require('ReactDOM');
 
-describe('ReactMount', function() {
-  it('should destroy a react root upon request', function() {
+describe('ReactMount', () => {
+  it('should destroy a react root upon request', () => {
     var mainContainerDiv = document.createElement('div');
     document.body.appendChild(mainContainerDiv);
 
@@ -40,7 +40,7 @@ describe('ReactMount', function() {
     expect(secondRootDiv.firstChild).toBeNull();
   });
 
-  it('should warn when unmounting a non-container root node', function() {
+  it('should warn when unmounting a non-container root node', () => {
     var mainContainerDiv = document.createElement('div');
 
     var component =
@@ -53,8 +53,8 @@ describe('ReactMount', function() {
     var rootDiv = mainContainerDiv.firstChild;
     spyOn(console, 'error');
     ReactDOM.unmountComponentAtNode(rootDiv);
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toBe(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toBe(
       'Warning: unmountComponentAtNode(): The node you\'re attempting to ' +
       'unmount was rendered by React and is not a top-level container. You ' +
       'may have accidentally passed in a React root node instead of its ' +
@@ -62,7 +62,7 @@ describe('ReactMount', function() {
     );
   });
 
-  it('should warn when unmounting a non-container, non-root node', function() {
+  it('should warn when unmounting a non-container, non-root node', () => {
     var mainContainerDiv = document.createElement('div');
 
     var component =
@@ -77,8 +77,8 @@ describe('ReactMount', function() {
     var nonRootDiv = mainContainerDiv.firstChild.firstChild;
     spyOn(console, 'error');
     ReactDOM.unmountComponentAtNode(nonRootDiv);
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toBe(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toBe(
       'Warning: unmountComponentAtNode(): The node you\'re attempting to ' +
       'unmount was rendered by React and is not a top-level container. ' +
       'Instead, have the parent component update its state and rerender in ' +

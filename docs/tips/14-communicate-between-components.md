@@ -2,7 +2,7 @@
 id: communicate-between-components
 title: Communicate Between Components
 layout: tips
-permalink: communicate-between-components.html
+permalink: tips/communicate-between-components.html
 prev: false-in-jsx.html
 next: expose-component-functions.html
 ---
@@ -13,8 +13,8 @@ For child-parent communication:
 Say your `GroceryList` component has a list of items generated through an array. When a list item is clicked, you want to display its name:
 
 ```js
-var handleClick = function(i, props) {
-  console.log('You clicked: ' + props.items[i]);
+var handleClick = function(i, items) {
+  console.log('You clicked: ' + items[i]);
 }
 
 function GroceryList(props) {  
@@ -22,7 +22,7 @@ function GroceryList(props) {
     <div>
       {props.items.map(function(item, i) {
         return (
-          <div onClick={handleClick.bind(this, i, props)} key={i}>{item}</div>
+          <div onClick={handleClick.bind(this, i, props.items)} key={i}>{item}</div>
         );
       })}
     </div>

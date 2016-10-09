@@ -16,17 +16,14 @@ var EventPluginHub = require('EventPluginHub');
 var EventPluginRegistry = require('EventPluginRegistry');
 var EventPropagators = require('EventPropagators');
 var React = require('React');
-var ReactDefaultInjection = require('ReactDefaultInjection');
 var ReactDOM = require('ReactDOM');
 var ReactDOMComponentTree = require('ReactDOMComponentTree');
-var ReactElement = require('ReactElement');
 var ReactBrowserEventEmitter = require('ReactBrowserEventEmitter');
-var ReactCompositeComponent = require('ReactCompositeComponent');
 var ReactInstanceMap = require('ReactInstanceMap');
 var ReactUpdates = require('ReactUpdates');
 var SyntheticEvent = require('SyntheticEvent');
+var ReactShallowRenderer = require('ReactShallowRenderer');
 
-var emptyObject = require('emptyObject');
 var findDOMNode = require('findDOMNode');
 var invariant = require('invariant');
 
@@ -60,7 +57,7 @@ function findAllInRenderedTreeInternal(inst, test) {
       );
     }
   } else if (
-    ReactElement.isValidElement(currentElement) &&
+    React.isValidElement(currentElement) &&
     typeof currentElement.type === 'function'
   ) {
     ret = ret.concat(
@@ -71,6 +68,10 @@ function findAllInRenderedTreeInternal(inst, test) {
 }
 
 /**
+ * Utilities for making it easy to test React components.
+ *
+ * See https://facebook.github.io/react/docs/test-utils.html
+ *
  * Todo: Support the entire DOM.scry query syntax. For now, these simple
  * utilities will suffice for testing purposes.
  * @lends ReactTestUtils
@@ -87,12 +88,12 @@ var ReactTestUtils = {
   },
 
   isElement: function(element) {
-    return ReactElement.isValidElement(element);
+    return React.isValidElement(element);
   },
 
   isElementOfType: function(inst, convenienceConstructor) {
     return (
-      ReactElement.isValidElement(inst) &&
+      React.isValidElement(inst) &&
       inst.type === convenienceConstructor
     );
   },
@@ -103,7 +104,7 @@ var ReactTestUtils = {
 
   isDOMComponentElement: function(inst) {
     return !!(inst &&
-              ReactElement.isValidElement(inst) &&
+              React.isValidElement(inst) &&
               !!inst.tagName);
   },
 
@@ -131,7 +132,7 @@ var ReactTestUtils = {
   },
 
   isCompositeComponentElement: function(inst) {
-    if (!ReactElement.isValidElement(inst)) {
+    if (!React.isValidElement(inst)) {
       return false;
     }
     // We check the prototype of the type that will get mounted, not the
@@ -178,9 +179,6 @@ var ReactTestUtils = {
    * @return {array} an array of all the matches.
    */
   scryRenderedDOMComponentsWithClass: function(root, classNames) {
-    if (!Array.isArray(classNames)) {
-      classNames = classNames.split(/\s+/);
-    }
     return ReactTestUtils.findAllInRenderedTree(root, function(inst) {
       if (ReactTestUtils.isDOMComponent(inst)) {
         var className = inst.className;
@@ -189,6 +187,15 @@ var ReactTestUtils = {
           className = inst.getAttribute('class') || '';
         }
         var classList = className.split(/\s+/);
+
+        if (!Array.isArray(classNames)) {
+          invariant(
+            classNames !== undefined,
+            'TestUtils.scryRenderedDOMComponentsWithClass expects a ' +
+            'className as a second argument.'
+          );
+          classNames = classNames.split(/\s+/);
+        }
         return classNames.every(function(name) {
           return classList.indexOf(name) !== -1;
         });
@@ -356,122 +363,6 @@ var ReactTestUtils = {
 };
 
 /**
- * @class ReactShallowRenderer
- */
-var ReactShallowRenderer = function() {
-  this._instance = null;
-};
-
-ReactShallowRenderer.prototype.getMountedInstance = function() {
-  return this._instance ? this._instance._instance : null;
-};
-
-var NoopInternalComponent = function(element) {
-  this._renderedOutput = element;
-  this._currentElement = element;
-};
-
-NoopInternalComponent.prototype = {
-
-  mountComponent: function() {
-  },
-
-  receiveComponent: function(element) {
-    this._renderedOutput = element;
-    this._currentElement = element;
-  },
-
-  getNativeNode: function() {
-    return undefined;
-  },
-
-  unmountComponent: function() {
-  },
-
-  getPublicInstance: function() {
-    return null;
-  },
-};
-
-var ShallowComponentWrapper = function(element) {
-  this.construct(element);
-};
-Object.assign(
-  ShallowComponentWrapper.prototype,
-  ReactCompositeComponent.Mixin, {
-    _constructComponent:
-      ReactCompositeComponent.Mixin._constructComponentWithoutOwner,
-    _instantiateReactComponent: function(element) {
-      return new NoopInternalComponent(element);
-    },
-    _replaceNodeWithMarkup: function() {},
-    _renderValidatedComponent:
-      ReactCompositeComponent.Mixin
-        ._renderValidatedComponentWithoutOwnerOrContext,
-  }
-);
-
-ReactShallowRenderer.prototype.render = function(element, context) {
-  // Ensure we've done the default injections. This might not be true in the
-  // case of a simple test that only requires React and the TestUtils in
-  // conjunction with an inline-requires transform.
-  ReactDefaultInjection.inject();
-
-  invariant(
-    ReactElement.isValidElement(element),
-    'ReactShallowRenderer render(): Invalid component element.%s',
-    typeof element === 'function' ?
-      ' Instead of passing a component class, make sure to instantiate ' +
-      'it by passing it to React.createElement.' :
-      ''
-  );
-  invariant(
-    typeof element.type !== 'string',
-    'ReactShallowRenderer render(): Shallow rendering works only with custom ' +
-    'components, not primitives (%s). Instead of calling `.render(el)` and ' +
-    'inspecting the rendered output, look at `el.props` directly instead.',
-    element.type
-  );
-
-  if (!context) {
-    context = emptyObject;
-  }
-  ReactUpdates.batchedUpdates(_batchedRender, this, element, context);
-
-  return this.getRenderOutput();
-};
-
-function _batchedRender(renderer, element, context) {
-  var transaction = ReactUpdates.ReactReconcileTransaction.getPooled(true);
-  renderer._render(element, transaction, context);
-  ReactUpdates.ReactReconcileTransaction.release(transaction);
-}
-
-ReactShallowRenderer.prototype.getRenderOutput = function() {
-  return (
-    (this._instance && this._instance._renderedComponent &&
-     this._instance._renderedComponent._renderedOutput)
-    || null
-  );
-};
-
-ReactShallowRenderer.prototype.unmount = function() {
-  if (this._instance) {
-    this._instance.unmountComponent(false);
-  }
-};
-
-ReactShallowRenderer.prototype._render = function(element, transaction, context) {
-  if (this._instance) {
-    this._instance.receiveComponent(element, transaction, context);
-  } else {
-    var instance = new ShallowComponentWrapper(element);
-    instance.mountComponent(transaction, null, null, context);
-    this._instance = instance;
-  }
-};
-
-/**
  * Exports:
  *
  * - `ReactTestUtils.Simulate.click(Element/ReactDOMComponent)`
@@ -498,6 +389,8 @@ function makeSimulator(eventType) {
 
     var fakeNativeEvent = new Event();
     fakeNativeEvent.target = node;
+    fakeNativeEvent.type = eventType.toLowerCase();
+
     // We don't use SyntheticEvent.getPooled in order to not have to worry about
     // properly destroying any properties assigned from `eventData` upon release
     var event = new SyntheticEvent(

@@ -15,11 +15,11 @@ var React;
 var ReactDOM;
 var ReactTestUtils;
 
-describe('ReactElement', function() {
+describe('ReactElement', () => {
   var ComponentClass;
   var originalSymbol;
 
-  beforeEach(function() {
+  beforeEach(() => {
     jest.resetModuleRegistry();
 
     // Delete the native Symbol if we have one to ensure we test the
@@ -39,25 +39,25 @@ describe('ReactElement', function() {
     });
   });
 
-  afterEach(function() {
+  afterEach(() => {
     global.Symbol = originalSymbol;
   });
 
-  it('uses the fallback value when in an environment without Symbol', function() {
+  it('uses the fallback value when in an environment without Symbol', () => {
     expect(<div />.$$typeof).toBe(0xeac7);
   });
 
-  it('returns a complete element according to spec', function() {
+  it('returns a complete element according to spec', () => {
     var element = React.createFactory(ComponentClass)();
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe(null);
     expect(element.ref).toBe(null);
-    var expectation = {};
-    Object.freeze(expectation);
-    expect(element.props).toEqual(expectation);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({});
   });
 
-  it('should warn when `key` is being accessed', function() {
+  it('should warn when `key` is being accessed on createClass element', () => {
     spyOn(console, 'error');
     var container = document.createElement('div');
     var Child = React.createClass({
@@ -76,10 +76,10 @@ describe('ReactElement', function() {
         );
       },
     });
-    expect(console.error.calls.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
     ReactDOM.render(<Parent />, container);
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'Child: `key` is not a prop. Trying to access it will result ' +
       'in `undefined` being returned. If you need to access the same ' +
       'value within the child component, you should pass it as a different ' +
@@ -87,7 +87,51 @@ describe('ReactElement', function() {
     );
   });
 
-  it('should warn when `ref` is being accessed', function() {
+  it('should warn when `key` is being accessed on ES class element', () => {
+    spyOn(console, 'error');
+    var container = document.createElement('div');
+    class Child extends React.Component {
+      render() {
+        return <div> {this.props.key} </div>;
+      }
+    }
+    var Parent = React.createClass({
+      render: function() {
+        return (
+          <div>
+            <Child key="0" />
+            <Child key="1" />
+            <Child key="2" />
+          </div>
+        );
+      },
+    });
+    expect(console.error.calls.count()).toBe(0);
+    ReactDOM.render(<Parent />, container);
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'Child: `key` is not a prop. Trying to access it will result ' +
+      'in `undefined` being returned. If you need to access the same ' +
+      'value within the child component, you should pass it as a different ' +
+      'prop. (https://fb.me/react-special-props)'
+    );
+  });
+
+  it('should warn when `key` is being accessed on a host element', () => {
+    spyOn(console, 'error');
+    var element = <div key="3" />;
+    expect(console.error.calls.count()).toBe(0);
+    void element.props.key;
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
+      'div: `key` is not a prop. Trying to access it will result ' +
+      'in `undefined` being returned. If you need to access the same ' +
+      'value within the child component, you should pass it as a different ' +
+      'prop. (https://fb.me/react-special-props)'
+    );
+  });
+
+  it('should warn when `ref` is being accessed', () => {
     spyOn(console, 'error');
     var container = document.createElement('div');
     var Child = React.createClass({
@@ -104,10 +148,10 @@ describe('ReactElement', function() {
         );
       },
     });
-    expect(console.error.calls.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
     ReactDOM.render(<Parent />, container);
-    expect(console.error.calls.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
+    expect(console.error.calls.count()).toBe(1);
+    expect(console.error.calls.argsFor(0)[0]).toContain(
       'Child: `ref` is not a prop. Trying to access it will result ' +
       'in `undefined` being returned. If you need to access the same ' +
       'value within the child component, you should pass it as a different ' +
@@ -115,22 +159,22 @@ describe('ReactElement', function() {
     );
   });
 
-  it('allows a string to be passed as the type', function() {
+  it('allows a string to be passed as the type', () => {
     var element = React.createFactory('div')();
     expect(element.type).toBe('div');
     expect(element.key).toBe(null);
     expect(element.ref).toBe(null);
-    var expectation = {};
-    Object.freeze(expectation);
-    expect(element.props).toEqual(expectation);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({});
   });
 
-  it('returns an immutable element', function() {
+  it('returns an immutable element', () => {
     var element = React.createFactory(ComponentClass)();
     expect(() => element.type = 'div').toThrow();
   });
 
-  it('does not reuse the original config object', function() {
+  it('does not reuse the original config object', () => {
     var config = {foo: 1};
     var element = React.createFactory(ComponentClass)(config);
     expect(element.props.foo).toBe(1);
@@ -138,19 +182,13 @@ describe('ReactElement', function() {
     expect(element.props.foo).toBe(1);
   });
 
-  it('warns if the config object inherits from any type other than Object', function() {
-    spyOn(console, 'error');
-    React.createElement('div', {foo: 1});
-    expect(console.error).not.toHaveBeenCalled();
-    React.createElement('div', Object.create({foo: 1}));
-    expect(console.error.argsForCall.length).toBe(1);
-    expect(console.error.argsForCall[0][0]).toContain(
-      'React.createElement(...): Expected props argument to be a plain object. ' +
-      'Properties defined in its prototype chain will be ignored.'
-    );
+  it('does not fail if config has no prototype', () => {
+    var config = Object.create(null, {foo: {value: 1, enumerable: true}});
+    var element = React.createFactory(ComponentClass)(config);
+    expect(element.props.foo).toBe(1);
   });
 
-  it('extracts key and ref from the config', function() {
+  it('extracts key and ref from the config', () => {
     var element = React.createFactory(ComponentClass)({
       key: '12',
       ref: '34',
@@ -159,12 +197,48 @@ describe('ReactElement', function() {
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe('12');
     expect(element.ref).toBe('34');
-    var expectation = {foo:'56'};
-    Object.freeze(expectation);
-    expect(element.props).toEqual(expectation);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({foo: '56'});
   });
 
-  it('coerces the key to a string', function() {
+  it('extracts null key and ref', () => {
+    var element = React.createFactory(ComponentClass)({
+      key: null,
+      ref: null,
+      foo: '12',
+    });
+    expect(element.type).toBe(ComponentClass);
+    expect(element.key).toBe('null');
+    expect(element.ref).toBe(null);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({foo: '12'});
+  });
+
+  it('ignores undefined key and ref', () => {
+    var props = {
+      foo: '56',
+      key: undefined,
+      ref: undefined,
+    };
+    var element = React.createFactory(ComponentClass)(props);
+    expect(element.type).toBe(ComponentClass);
+    expect(element.key).toBe(null);
+    expect(element.ref).toBe(null);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({foo: '56'});
+  });
+
+  it('ignores key and ref warning getters', () => {
+    var elementA = React.createElement('div');
+    var elementB = React.createElement('div', elementA.props);
+    expect(elementB.key).toBe(null);
+    expect(elementB.ref).toBe(null);
+  });
+
+  it('coerces the key to a string', () => {
     var element = React.createFactory(ComponentClass)({
       key: 12,
       foo: '56',
@@ -172,12 +246,12 @@ describe('ReactElement', function() {
     expect(element.type).toBe(ComponentClass);
     expect(element.key).toBe('12');
     expect(element.ref).toBe(null);
-    var expectation = {foo:'56'};
-    Object.freeze(expectation);
-    expect(element.props).toEqual(expectation);
+    expect(Object.isFrozen(element)).toBe(true);
+    expect(Object.isFrozen(element.props)).toBe(true);
+    expect(element.props).toEqual({foo: '56'});
   });
 
-  it('preserves the owner on the element', function() {
+  it('preserves the owner on the element', () => {
     var Component = React.createFactory(ComponentClass);
     var element;
 
@@ -195,47 +269,47 @@ describe('ReactElement', function() {
     expect(element._owner.getPublicInstance()).toBe(instance);
   });
 
-  it('merges an additional argument onto the children prop', function() {
+  it('merges an additional argument onto the children prop', () => {
     spyOn(console, 'error');
     var a = 1;
     var element = React.createFactory(ComponentClass)({
       children: 'text',
     }, a);
     expect(element.props.children).toBe(a);
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('does not override children if no rest args are provided', function() {
+  it('does not override children if no rest args are provided', () => {
     spyOn(console, 'error');
     var element = React.createFactory(ComponentClass)({
       children: 'text',
     });
     expect(element.props.children).toBe('text');
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('overrides children if null is provided as an argument', function() {
+  it('overrides children if null is provided as an argument', () => {
     spyOn(console, 'error');
     var element = React.createFactory(ComponentClass)({
       children: 'text',
     }, null);
     expect(element.props.children).toBe(null);
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('merges rest arguments onto the children prop in an array', function() {
+  it('merges rest arguments onto the children prop in an array', () => {
     spyOn(console, 'error');
     var a = 1;
     var b = 2;
     var c = 3;
     var element = React.createFactory(ComponentClass)(null, a, b, c);
     expect(element.props.children).toEqual([1, 2, 3]);
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('allows static methods to be called using the type property', function() {
+  it('allows static methods to be called using the type property', () => {
     spyOn(console, 'error');
 
     var StaticMethodComponentClass = React.createClass({
@@ -254,12 +328,12 @@ describe('ReactElement', function() {
 
     var element = React.createElement(StaticMethodComponentClass);
     expect(element.type.someStaticMethod()).toBe('someReturnValue');
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('identifies valid elements', function() {
+  it('identifies valid elements', () => {
     var Component = React.createClass({
       render: function() {
         return React.createElement('div');
@@ -283,7 +357,7 @@ describe('ReactElement', function() {
     expect(React.isValidElement(JSON.parse(jsonElement))).toBe(true);
   });
 
-  it('allows the use of PropTypes validators in statics', function() {
+  it('allows the use of PropTypes validators in statics', () => {
     // TODO: This test was added to cover a special case where we proxied
     // methods. However, we don't do that any more so this test can probably
     // be removed. Leaving it in classic as a safety precaution.
@@ -300,7 +374,7 @@ describe('ReactElement', function() {
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('is indistinguishable from a plain object', function() {
+  it('is indistinguishable from a plain object', () => {
     var element = React.createElement('div', {className: 'foo'});
     var object = {};
     expect(element.constructor).toBe(object.constructor);
@@ -308,7 +382,7 @@ describe('ReactElement', function() {
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('should use default prop value when removing a prop', function() {
+  it('should use default prop value when removing a prop', () => {
     var Component = React.createClass({
       getDefaultProps: function() {
         return {fruit: 'persimmon'};
@@ -331,7 +405,7 @@ describe('ReactElement', function() {
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('should normalize props with default values', function() {
+  it('should normalize props with default values', () => {
     var Component = React.createClass({
       getDefaultProps: function() {
         return {prop: 'testKey'};
@@ -352,30 +426,7 @@ describe('ReactElement', function() {
     expect(inst2.props.prop).toBe(null);
   });
 
-  it('should normalize props with default values in cloning', function() {
-    var Component = React.createClass({
-      getDefaultProps: function() {
-        return {prop: 'testKey'};
-      },
-      render: function() {
-        return <span />;
-      },
-    });
-
-    var instance = React.createElement(Component);
-    var clonedInstance = React.cloneElement(instance, {prop: undefined});
-    expect(clonedInstance.props.prop).toBe('testKey');
-    var clonedInstance2 = React.cloneElement(instance, {prop: null});
-    expect(clonedInstance2.props.prop).toBe(null);
-
-    var instance2 = React.createElement(Component, {prop: 'newTestKey'});
-    var cloneInstance3 = React.cloneElement(instance2, {prop: undefined});
-    expect(cloneInstance3.props.prop).toBe('testKey');
-    var cloneInstance4 = React.cloneElement(instance2, {});
-    expect(cloneInstance4.props.prop).toBe('newTestKey');
-  });
-
-  it('throws when changing a prop (in dev) after element creation', function() {
+  it('throws when changing a prop (in dev) after element creation', () => {
     var Outer = React.createClass({
       render: function() {
         var el = <div className="moo" />;
@@ -392,7 +443,7 @@ describe('ReactElement', function() {
     expect(ReactDOM.findDOMNode(outer).className).toBe('moo');
   });
 
-  it('throws when adding a prop (in dev) after element creation', function() {
+  it('throws when adding a prop (in dev) after element creation', () => {
     var container = document.createElement('div');
     var Outer = React.createClass({
       getDefaultProps: () => ({sound: 'meow'}),
@@ -413,7 +464,7 @@ describe('ReactElement', function() {
     expect(ReactDOM.findDOMNode(outer).className).toBe('');
   });
 
-  it('does not warn for NaN props', function() {
+  it('does not warn for NaN props', () => {
     spyOn(console, 'error');
     var Test = React.createClass({
       render: function() {
@@ -422,12 +473,12 @@ describe('ReactElement', function() {
     });
     var test = ReactTestUtils.renderIntoDocument(<Test value={+undefined} />);
     expect(test.props.value).toBeNaN();
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
   // NOTE: We're explicitly not using JSX here. This is intended to test
   // classic JS without JSX.
-  it('identifies elements, but not JSON, if Symbols are supported', function() {
+  it('identifies elements, but not JSON, if Symbols are supported', () => {
     // Rudimentary polyfill
     // Once all jest engines support Symbols natively we can swap this to test
     // WITH native Symbols by default.
@@ -472,10 +523,10 @@ describe('ReactElement', function() {
 
 });
 
-describe('comparing jsx vs .createFactory() vs .createElement()', function() {
+describe('comparing jsx vs .createFactory() vs .createElement()', () => {
   var Child;
 
-  beforeEach(function() {
+  beforeEach(() => {
     jest.resetModuleRegistry();
     React = require('React');
     ReactDOM = require('ReactDOM');
@@ -484,9 +535,9 @@ describe('comparing jsx vs .createFactory() vs .createElement()', function() {
   });
 
 
-  describe('when using jsx only', function() {
+  describe('when using jsx only', () => {
     var Parent, instance;
-    beforeEach(function() {
+    beforeEach(() => {
       Parent = React.createClass({
         render: function() {
           return (
@@ -499,23 +550,23 @@ describe('comparing jsx vs .createFactory() vs .createElement()', function() {
       instance = ReactTestUtils.renderIntoDocument(<Parent/>);
     });
 
-    it('should scry children but cannot', function() {
+    it('should scry children but cannot', () => {
       var children = ReactTestUtils.scryRenderedComponentsWithType(instance, Child);
       expect(children.length).toBe(1);
     });
 
-    it('does not maintain refs', function() {
+    it('does not maintain refs', () => {
       expect(instance.refs.child).not.toBeUndefined();
     });
 
-    it('can capture Child instantiation calls', function() {
+    it('can capture Child instantiation calls', () => {
       expect(Child.mock.calls[0][0]).toEqual({ foo: 'foo value', children: 'children value' });
     });
   });
 
-  describe('when using parent that uses .createFactory()', function() {
+  describe('when using parent that uses .createFactory()', () => {
     var factory, instance;
-    beforeEach(function() {
+    beforeEach(() => {
       var childFactory = React.createFactory(Child);
       var Parent = React.createClass({
         render: function() {
@@ -526,23 +577,23 @@ describe('comparing jsx vs .createFactory() vs .createElement()', function() {
       instance = ReactTestUtils.renderIntoDocument(factory());
     });
 
-    it('can properly scry children', function() {
+    it('can properly scry children', () => {
       var children = ReactTestUtils.scryRenderedComponentsWithType(instance, Child);
       expect(children.length).toBe(1);
     });
 
-    it('does not maintain refs', function() {
+    it('does not maintain refs', () => {
       expect(instance.refs.child).not.toBeUndefined();
     });
 
-    it('can capture Child instantiation calls', function() {
+    it('can capture Child instantiation calls', () => {
       expect(Child.mock.calls[0][0]).toEqual({ foo: 'foo value', children: 'children value' });
     });
   });
 
-  describe('when using parent that uses .createElement()', function() {
+  describe('when using parent that uses .createElement()', () => {
     var factory, instance;
-    beforeEach(function() {
+    beforeEach(() => {
       var Parent = React.createClass({
         render: function() {
           return React.DOM.div({}, React.createElement(Child, { ref: 'child', foo: 'foo value' }, 'children value'));
@@ -552,17 +603,18 @@ describe('comparing jsx vs .createFactory() vs .createElement()', function() {
       instance = ReactTestUtils.renderIntoDocument(factory());
     });
 
-    it('should scry children but cannot', function() {
+    it('should scry children but cannot', () => {
       var children = ReactTestUtils.scryRenderedComponentsWithType(instance, Child);
       expect(children.length).toBe(1);
     });
 
-    it('does not maintain refs', function() {
+    it('does not maintain refs', () => {
       expect(instance.refs.child).not.toBeUndefined();
     });
 
-    it('can capture Child instantiation calls', function() {
+    it('can capture Child instantiation calls', () => {
       expect(Child.mock.calls[0][0]).toEqual({ foo: 'foo value', children: 'children value' });
     });
   });
+
 });

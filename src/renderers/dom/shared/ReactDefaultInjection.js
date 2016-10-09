@@ -11,11 +11,11 @@
 
 'use strict';
 
+var ARIADOMPropertyConfig = require('ARIADOMPropertyConfig');
 var BeforeInputEventPlugin = require('BeforeInputEventPlugin');
 var ChangeEventPlugin = require('ChangeEventPlugin');
 var DefaultEventPluginOrder = require('DefaultEventPluginOrder');
 var EnterLeaveEventPlugin = require('EnterLeaveEventPlugin');
-var ExecutionEnvironment = require('ExecutionEnvironment');
 var HTMLDOMPropertyConfig = require('HTMLDOMPropertyConfig');
 var ReactComponentBrowserEnvironment =
   require('ReactComponentBrowserEnvironment');
@@ -66,14 +66,15 @@ function inject() {
     BeforeInputEventPlugin: BeforeInputEventPlugin,
   });
 
-  ReactInjection.NativeComponent.injectGenericComponentClass(
+  ReactInjection.HostComponent.injectGenericComponentClass(
     ReactDOMComponent
   );
 
-  ReactInjection.NativeComponent.injectTextComponentClass(
+  ReactInjection.HostComponent.injectTextComponentClass(
     ReactDOMTextComponent
   );
 
+  ReactInjection.DOMProperty.injectDOMPropertyConfig(ARIADOMPropertyConfig);
   ReactInjection.DOMProperty.injectDOMPropertyConfig(HTMLDOMPropertyConfig);
   ReactInjection.DOMProperty.injectDOMPropertyConfig(SVGDOMPropertyConfig);
 
@@ -91,14 +92,6 @@ function inject() {
   );
 
   ReactInjection.Component.injectEnvironment(ReactComponentBrowserEnvironment);
-
-  if (__DEV__) {
-    var url = (ExecutionEnvironment.canUseDOM && window.location.href) || '';
-    if ((/[?&]react_perf\b/).test(url)) {
-      var ReactDefaultPerf = require('ReactDefaultPerf');
-      ReactDefaultPerf.start();
-    }
-  }
 }
 
 module.exports = {

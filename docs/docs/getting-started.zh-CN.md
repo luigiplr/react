@@ -1,7 +1,7 @@
 ---
 id: getting-started-zh-CN
 title: 入门教程
-permalink: getting-started-zh-CN.html
+permalink: docs/getting-started-zh-CN.html
 next: tutorial-zh-CN.html
 redirect_from: "docs/index-zh-CN.html"
 ---
@@ -76,7 +76,7 @@ new webpack.DefinePlugin({
     <title>Hello React!</title>
     <script src="build/react.js"></script>
     <script src="build/react-dom.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
+    <script src="https://unpkg.com/babel-core@5.8.38/browser.min.js"></script>
   </head>
   <body>
     <div id="example"></div>
@@ -161,7 +161,7 @@ ReactDOM.render(
 
 ## 下一步
 
-去看看[入门教程](/react/docs/tutorial.html) 和入门教程包 `examples` 目录下的其它例子学习更多。
+去看看[入门教程](/react/docs/tutorial-zh-CN.html) 和入门教程包 `examples` 目录下的其它例子学习更多。
 
 我们还有一个社区开发者共建的 Wiki：[workflows, UI-components, routing, data management etc.](https://github.com/facebook/react/wiki/Complementary-Tools)
 

@@ -16,7 +16,7 @@ var ReactDOM = require('ReactDOM');
 var ReactTestUtils = require('ReactTestUtils');
 var div = React.createFactory('div');
 
-describe('ReactDOM', function() {
+describe('ReactDOM', () => {
   // TODO: uncomment this test once we can run in phantom, which
   // supports real submit events.
   /*
@@ -46,13 +46,13 @@ describe('ReactDOM', function() {
   });
   */
 
-  it('allows a DOM element to be used with a string', function() {
+  it('allows a DOM element to be used with a string', () => {
     var element = React.createElement('div', {className: 'foo'});
     var instance = ReactTestUtils.renderIntoDocument(element);
     expect(ReactDOM.findDOMNode(instance).tagName).toBe('DIV');
   });
 
-  it('should allow children to be passed as an argument', function() {
+  it('should allow children to be passed as an argument', () => {
     var argDiv = ReactTestUtils.renderIntoDocument(
       div(null, 'child')
     );
@@ -60,7 +60,7 @@ describe('ReactDOM', function() {
     expect(argNode.innerHTML).toBe('child');
   });
 
-  it('should overwrite props.children with children argument', function() {
+  it('should overwrite props.children with children argument', () => {
     var conflictDiv = ReactTestUtils.renderIntoDocument(
       div({children: 'fakechild'}, 'child')
     );
@@ -72,7 +72,7 @@ describe('ReactDOM', function() {
    * We need to make sure that updates occur to the actual node that's in the
    * DOM, instead of a stale cache.
    */
-  it('should purge the DOM cache when removing nodes', function() {
+  it('should purge the DOM cache when removing nodes', () => {
     var myDiv = ReactTestUtils.renderIntoDocument(
       <div>
         <div key="theDog" className="dog" />,
@@ -111,68 +111,68 @@ describe('ReactDOM', function() {
     expect(dog.className).toBe('bigdog');
   });
 
-  it('allow React.DOM factories to be called without warnings', function() {
+  it('allow React.DOM factories to be called without warnings', () => {
     spyOn(console, 'error');
     var element = React.DOM.div();
     expect(element.type).toBe('div');
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('throws in render() if the mount callback is not a function', function() {
+  it('throws in render() if the mount callback is not a function', () => {
     function Foo() {
       this.a = 1;
       this.b = 2;
     }
-    var A = React.createClass({
-      getInitialState: function() {
-        return {};
-      },
-      render: function() {
+
+    class A extends React.Component {
+      state = {};
+
+      render() {
         return <div />;
-      },
-    });
+      }
+    }
 
     var myDiv = document.createElement('div');
-    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: string.'
     );
-    expect(() => ReactDOM.render(<A />, myDiv, {})).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, {})).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: Object.'
     );
-    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: Foo (keys: a, b).'
     );
   });
 
-  it('throws in render() if the update callback is not a function', function() {
+  it('throws in render() if the update callback is not a function', () => {
     function Foo() {
       this.a = 1;
       this.b = 2;
     }
-    var A = React.createClass({
-      getInitialState: function() {
-        return {};
-      },
-      render: function() {
+
+    class A extends React.Component {
+      state = {};
+
+      render() {
         return <div />;
-      },
-    });
+      }
+    }
 
     var myDiv = document.createElement('div');
     ReactDOM.render(<A />, myDiv);
 
-    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: string.'
     );
-    expect(() => ReactDOM.render(<A />, myDiv, {})).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, {})).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: Object.'
     );
-    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrow(
+    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrowError(
       'ReactDOM.render(...): Expected the last optional `callback` argument ' +
       'to be a function. Instead received: Foo (keys: a, b).'
     );

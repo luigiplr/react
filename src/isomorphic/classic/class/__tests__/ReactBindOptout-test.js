@@ -16,13 +16,13 @@ var ReactTestUtils = require('ReactTestUtils');
 var reactComponentExpect = require('reactComponentExpect');
 
 // TODO: Test render and all stock methods.
-describe('autobind optout', function() {
+describe('autobind optout', () => {
 
-  it('should work with manual binding', function() {
+  it('should work with manual binding', () => {
 
-    var mouseDidEnter = jest.genMockFn();
-    var mouseDidLeave = jest.genMockFn();
-    var mouseDidClick = jest.genMockFn();
+    var mouseDidEnter = jest.fn();
+    var mouseDidLeave = jest.fn();
+    var mouseDidClick = jest.fn();
 
     var TestBindComponent = React.createClass({
       autobind: false,
@@ -81,7 +81,7 @@ describe('autobind optout', function() {
     expect(mouseDidLeave.mock.instances[1]).toBe(mountedInstance2);
   });
 
-  it('should not hold reference to instance', function() {
+  it('should not hold reference to instance', () => {
     var mouseDidClick = function() {
       void this.state.something;
     };
@@ -137,8 +137,8 @@ describe('autobind optout', function() {
     }).toThrow();
   });
 
-  it('works with mixins that have not opted out of autobinding', function() {
-    var mouseDidClick = jest.genMockFn();
+  it('works with mixins that have not opted out of autobinding', () => {
+    var mouseDidClick = jest.fn();
 
     var TestMixin = {
       onClick: mouseDidClick,
@@ -163,8 +163,8 @@ describe('autobind optout', function() {
     expect(mouseDidClick.mock.instances[0]).toBe(mountedInstance1);
   });
 
-  it('works with mixins that have opted out of autobinding', function() {
-    var mouseDidClick = jest.genMockFn();
+  it('works with mixins that have opted out of autobinding', () => {
+    var mouseDidClick = jest.fn();
 
     var TestMixin = {
       autobind: false,
@@ -190,7 +190,7 @@ describe('autobind optout', function() {
     expect(mouseDidClick.mock.instances[0]).toBe(mountedInstance1);
   });
 
-  it('does not warn if you try to bind to this', function() {
+  it('does not warn if you try to bind to this', () => {
     spyOn(console, 'error');
 
     var TestBindComponent = React.createClass({
@@ -203,10 +203,10 @@ describe('autobind optout', function() {
 
     ReactTestUtils.renderIntoDocument(<TestBindComponent />);
 
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
-  it('does not warn if you pass an manually bound method to setState', function() {
+  it('does not warn if you pass an manually bound method to setState', () => {
     spyOn(console, 'error');
 
     var TestBindComponent = React.createClass({
@@ -227,7 +227,7 @@ describe('autobind optout', function() {
 
     ReactTestUtils.renderIntoDocument(<TestBindComponent />);
 
-    expect(console.error.argsForCall.length).toBe(0);
+    expect(console.error.calls.count()).toBe(0);
   });
 
 });

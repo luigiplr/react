@@ -1,7 +1,7 @@
 ---
 id: displaying-data
 title: Displaying Data
-permalink: displaying-data.html
+permalink: docs/displaying-data.html
 prev: why-react.html
 next: jsx-in-depth.html
 ---
@@ -18,9 +18,9 @@ Let's look at a really simple example. Create a `hello-react.html` file with the
   <head>
     <meta charset="UTF-8" />
     <title>Hello React</title>
-    <script src="https://fb.me/react-{{site.react_version}}.js"></script>
-    <script src="https://fb.me/react-dom-{{site.react_version}}.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
+    <script src="https://unpkg.com/react@{{site.react_version}}/dist/react.js"></script>
+    <script src="https://unpkg.com/react-dom@{{site.react_version}}/dist/react-dom.js"></script>
+    <script src="https://unpkg.com/babel-core@5.8.38/browser.min.js"></script>
   </head>
   <body>
     <div id="example"></div>
@@ -36,8 +36,8 @@ Let's look at a really simple example. Create a `hello-react.html` file with the
 For the rest of the documentation, we'll just focus on the JavaScript code and assume it's inserted into a template like the one above. Replace the placeholder comment above with the following JSX:
 
 ```javascript
-var HelloWorld = React.createClass({
-  render: function() {
+class HelloWorld extends React.Component {
+  render() {
     return (
       <p>
         Hello, <input type="text" placeholder="Your name here" />!
@@ -45,14 +45,16 @@ var HelloWorld = React.createClass({
       </p>
     );
   }
-});
+}
 
-setInterval(function() {
+function tick() {
   ReactDOM.render(
     <HelloWorld date={new Date()} />,
     document.getElementById('example')
   );
-}, 500);
+}
+
+setInterval(tick, 500);
 ```
 
 ## Reactive Updates

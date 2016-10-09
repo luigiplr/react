@@ -11,18 +11,20 @@
 
 'use strict';
 
-describe('ReactDOMIDOperations', function() {
+describe('ReactDOMIDOperations', () => {
+  var ReactDOMComponentTree = require('ReactDOMComponentTree');
   var ReactDOMIDOperations = require('ReactDOMIDOperations');
-  var ReactMultiChildUpdateTypes = require('ReactMultiChildUpdateTypes');
 
-  it('should update innerHTML and preserve whitespace', function() {
+  it('should update innerHTML and preserve whitespace', () => {
     var stubNode = document.createElement('div');
-    var html = '\n  \t  <span>  \n  testContent  \t  </span>  \n  \t';
+    var stubInstance = {_debugID: 1};
+    ReactDOMComponentTree.precacheNode(stubInstance, stubNode);
 
+    var html = '\n  \t  <span>  \n  testContent  \t  </span>  \n  \t';
     ReactDOMIDOperations.dangerouslyProcessChildrenUpdates(
-      {_nativeNode: stubNode},
+      stubInstance,
       [{
-        type: ReactMultiChildUpdateTypes.SET_MARKUP,
+        type: 'SET_MARKUP',
         content: html,
         fromIndex: null,
         toIndex: null,

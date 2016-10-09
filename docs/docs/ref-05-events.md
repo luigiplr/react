@@ -1,7 +1,7 @@
 ---
 id: events
 title: Event System
-permalink: events.html
+permalink: docs/events.html
 prev: tags-and-attributes.html
 next: dom-differences.html
 ---
@@ -50,8 +50,11 @@ function onClick(event) {
     console.log(eventType); // => "click"
   }, 0);
 
-  this.setState({clickEvent: event}); // Won't work. this.state.clickEvent will only contain null values.
-  this.setState({eventType: event.type}); // You can still export event properties.
+  // Won't work. this.state.clickEvent will only contain null values.
+  this.setState({clickEvent: event});
+
+  // You can still export event properties.
+  this.setState({eventType: event.type});
 }
 ```
 
@@ -253,7 +256,10 @@ number deltaZ
 Event names:
 
 ```
-onAbort onCanPlay onCanPlayThrough onDurationChange onEmptied onEncrypted onEnded onError onLoadedData onLoadedMetadata onLoadStart onPause onPlay onPlaying onProgress onRateChange onSeeked onSeeking onStalled onSuspend onTimeUpdate onVolumeChange onWaiting
+onAbort onCanPlay onCanPlayThrough onDurationChange onEmptied onEncrypted 
+onEnded onError onLoadedData onLoadedMetadata onLoadStart onPause onPlay 
+onPlaying onProgress onRateChange onSeeked onSeeking onStalled onSuspend 
+onTimeUpdate onVolumeChange onWaiting
 ```
 
 
